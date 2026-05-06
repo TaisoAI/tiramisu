@@ -344,6 +344,31 @@ let tiramisuType: UTType = {
     return UTType(exportedAs: "world.hanley.tiramisu.project", conformingTo: .json)
 }()
 
+// MARK: - Help menu
+
+/// Replaces the default macOS Help menu with Tiramisu-specific items:
+/// links to docs, GitHub, bug reporting, and the Welcome dialog re-trigger.
+struct HelpCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .help) {
+            Button("Tiramisu Help") { openURL("https://tiramisu.hanley.world/getting-started.html") }
+                .keyboardShortcut("?", modifiers: [.command])
+            Button("Welcome to Tiramisu…") { WelcomeWindow.show(forced: true) }
+            Divider()
+            Button("View on GitHub") { openURL("https://github.com/hanley-tech/tiramisu") }
+            Button("Report a Bug…") { openURL("https://github.com/hanley-tech/tiramisu/issues/new") }
+            Divider()
+            Button("Install Local FLUX-Fill…") { GenerativeFillUI.runLocalFluxBootstrap() }
+            Divider()
+            Button("Visit Website") { openURL("https://tiramisu.hanley.world") }
+        }
+    }
+
+    private func openURL(_ s: String) {
+        if let url = URL(string: s) { NSWorkspace.shared.open(url) }
+    }
+}
+
 // MARK: - Debug menu
 
 struct DebugCommands: Commands {

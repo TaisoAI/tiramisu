@@ -16,6 +16,8 @@ struct TiramisuApp: App {
                     if store.controlServerEnabled {
                         ControlServer.shared.start(on: store.controlServerPort, store: store)
                     }
+                    // Show the first-run welcome dialog if it hasn't been dismissed.
+                    WelcomeWindow.showIfNeeded()
                 }
                 .onOpenURL { url in
                     TiramisuApp.loadFile(url: url, into: store)
@@ -25,6 +27,7 @@ struct TiramisuApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             AppCommands(store: store)
+            HelpCommands()
             DebugCommands()
         }
 

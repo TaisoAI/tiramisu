@@ -3,6 +3,108 @@ import AppKit
 
 @MainActor
 enum GenerativeFillUI {
+
+    // MARK: - Local FLUX-Fill bootstrap
+
+    /// Launches the Local FLUX-Fill setup script in Terminal. The script lives
+    /// either bundled in the app's Resources (preferred for distributed builds)
+    /// or in `scripts/bootstrap.sh` of the source repo (Debug builds).
+    /// We copy the script to a stable user-writeable location and chmod +x
+    /// before asking Terminal to run it, so HF login prompts and stdout work.
+    static func runLocalFluxBootstrap() {
+        let installer = NSAlert()
+        installer.messageText = "Install Local FLUX-Fill?"
+        installer.informativeText = """
+        This will open Terminal and run the setup script:
+
+          • install uv (Python toolchain) if missing
+          • install mflux (FLUX inference for Apple Silicon)
+          • prompt for your Hugging Face login
+          • download the FLUX-Fill model (~24 GB)
+
+        Idempotent — safe to re-run. You can quit Terminal at any time.
+        """
+        installer.addButton(withTitle: "Open Terminal & Install")
+        installer.addButton(withTitle: "Cancel")
+        guard installer.runModal() == .alertFirstButtonReturn else { return }
+
+        guard let scriptURL = locateBootstrapScript() else {
+            let a = NSAlert()
+            a.messageText = "bootstrap.sh not found"
+            a.informativeText = """
+            The Local FLUX-Fill setup script could not be found inside the app bundle or the source repo.
+
+            Workaround: clone the source repo and run ./scripts/bootstrap.sh manually:
+              git clone https://github.com/hanley-tech/tiramisu.git
+              cd tiramisu && ./scripts/bootstrap.sh
+            """
+            a.alertStyle = .warning
+            a.runModal()
+            return
+        }
+
+        // Copy to ~/.tiramisu/bootstrap.sh so it's a stable, executable location
+        // even when the source path was a sandboxed Resources/ inside the app bundle.
+        let cacheDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".tiramisu", isDirectory: true)
+        try? FileManager.default.createDirectory(at: cacheDir,
+                                                  withIntermediateDirectories: true)
+        let stableURL = cacheDir.appendingPathComponent("bootstrap.sh")
+        try? FileManager.default.removeItem(at: stableURL)
+        do {
+            try FileManager.default.copyItem(at: scriptURL, to: stableURL)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755],
+                                                   ofItemAtPath: stableURL.path)
+        } catch {
+            let a = NSAlert()
+            a.messageText = "Could not stage bootstrap.sh"
+            a.informativeText = error.localizedDescription
+            a.alertStyle = .warning
+            a.runModal()
+            return
+        }
+
+        // Drive Terminal via AppleScript: open a new tab and exec the script.
+        let escaped = stableURL.path.replacingOccurrences(of: "\"", with: "\\\"")
+        let appleScript = """
+        tell application "Terminal"
+            activate
+            do script "\\"\(escaped)\\""
+        end tell
+        """
+        if let script = NSAppleScript(source: appleScript) {
+            var err: NSDictionary?
+            script.executeAndReturnError(&err)
+            if let err {
+                tlog("AppleScript run-bootstrap failed: \(err)")
+                let a = NSAlert()
+                a.messageText = "Could not open Terminal"
+                a.informativeText = "Open Terminal yourself and run:\n\n  \(stableURL.path)"
+                a.runModal()
+            }
+        }
+    }
+
+    private static func locateBootstrapScript() -> URL? {
+        // 1. Inside the app bundle (preferred for distributed builds).
+        if let bundled = Bundle.main.url(forResource: "bootstrap", withExtension: "sh") {
+            return bundled
+        }
+        // 2. Source-repo fallback for Debug builds: walk up from the executable
+        //    looking for `scripts/bootstrap.sh`. Works when running from
+        //    DerivedData or from ~/Applications/Tiramisu.app (post-build hook).
+        let exec = Bundle.main.bundleURL
+        for depth in 0..<6 {
+            var candidate = exec
+            for _ in 0..<depth { candidate = candidate.deletingLastPathComponent() }
+            let probe = candidate.appendingPathComponent("scripts/bootstrap.sh")
+            if FileManager.default.isReadableFile(atPath: probe.path) { return probe }
+        }
+        return nil
+    }
+
+    // MARK: - Generative Fill modal
+
     static func present(store: DocumentStore) {
         let alert = NSAlert()
         alert.messageText = "Generative Fill"
@@ -59,9 +161,13 @@ enum GenerativeFillUI {
                 let a = NSAlert()
                 a.messageText = "Local FLUX-Fill not installed"
                 a.informativeText = LocalFluxFillService.setupInstructions
+                a.addButton(withTitle: "Install Local FLUX-Fill…")
                 a.addButton(withTitle: "Switch to Replicate (cloud)")
                 a.addButton(withTitle: "Cancel")
-                if a.runModal() == .alertFirstButtonReturn {
+                let r = a.runModal()
+                if r == .alertFirstButtonReturn {
+                    runLocalFluxBootstrap()
+                } else if r == .alertSecondButtonReturn {
                     GenerativeFillSettings.backend = .replicate
                     presentSettings()
                 }
@@ -156,9 +262,14 @@ enum GenerativeFillUI {
         stack.frame.size = NSSize(width: 420, height: 200)
         alert.accessoryView = stack
         alert.addButton(withTitle: "Save")
+        if !LocalFluxFillService.isInstalled {
+            alert.addButton(withTitle: "Install Local FLUX-Fill…")
+        }
         alert.addButton(withTitle: "Cancel")
 
-        if alert.runModal() == .alertFirstButtonReturn {
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
             switch backendPopup.indexOfSelectedItem {
             case 0: GenerativeFillSettings.backend = .replicate
             case 1: GenerativeFillSettings.backend = .localFlux
@@ -166,6 +277,10 @@ enum GenerativeFillUI {
             }
             GenerativeFillSettings.apiKey = keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             GenerativeFillSettings.model = modelField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .alertSecondButtonReturn where !LocalFluxFillService.isInstalled:
+            runLocalFluxBootstrap()
+        default:
+            break
         }
     }
 }
