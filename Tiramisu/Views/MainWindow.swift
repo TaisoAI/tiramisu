@@ -41,21 +41,43 @@ private struct CanvasToolbar: ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Menu {
                 Section("Thumbnails") {
-                    Button("YouTube 1280 × 720") { setSize(1280, 720) }
-                    Button("FHD 1920 × 1080") { setSize(1920, 1080) }
-                    Button("2K 2560 × 1440") { setSize(2560, 1440) }
-                    Button("4K UHD 3840 × 2160") { setSize(3840, 2160) }
+                    Button("YouTube · 1280 × 720") { setSize(1280, 720) }
+                    Button("FHD · 1920 × 1080") { setSize(1920, 1080) }
+                    Button("2K · 2560 × 1440") { setSize(2560, 1440) }
+                    Button("4K UHD · 3840 × 2160") { setSize(3840, 2160) }
                 }
-                Section("Channel Art") {
-                    Button("YouTube Banner 2560 × 1440") { setSize(2560, 1440) }
+                Section("Instagram") {
+                    Button("Square · 1080 × 1080") { setSize(1080, 1080) }
+                    Button("Portrait · 1080 × 1350") { setSize(1080, 1350) }
+                    Button("Story / Reels · 1080 × 1920") { setSize(1080, 1920) }
+                }
+                Section("TikTok") {
+                    Button("Cover / Reel · 1080 × 1920") { setSize(1080, 1920) }
+                }
+                Section("X / Twitter") {
+                    Button("Post · 1200 × 675") { setSize(1200, 675) }
+                    Button("Header · 1500 × 500") { setSize(1500, 500) }
+                }
+                Section("LinkedIn") {
+                    Button("Post · 1200 × 627") { setSize(1200, 627) }
+                    Button("Header · 1584 × 396") { setSize(1584, 396) }
+                }
+                Section("Channel Art / Banners") {
+                    Button("YouTube Banner · 2560 × 1440") { setSize(2560, 1440) }
+                    Button("Twitch Banner · 1920 × 480") { setSize(1920, 480) }
+                    Button("Discord Banner · 960 × 540") { setSize(960, 540) }
                 }
                 Section("Avatars") {
-                    Button("Profile Picture 1024 × 1024") { setSize(1024, 1024) }
+                    Button("Profile Picture · 1024 × 1024") { setSize(1024, 1024) }
+                    Button("Discord Server · 512 × 512") { setSize(512, 512) }
                 }
-                Section("Other") {
-                    Button("Square 1080 × 1080") { setSize(1080, 1080) }
-                    Button("Vertical 1080 × 1920") { setSize(1080, 1920) }
+                Section("Podcast Cover") {
+                    Button("Apple · 3000 × 3000") { setSize(3000, 3000) }
+                    Button("Spotify · 1400 × 1400") { setSize(1400, 1400) }
                 }
+                Divider()
+                Button("Custom Size…") { CanvasSizeDialog.present(store: store) }
+                    .keyboardShortcut("k", modifiers: [.command, .shift])
             } label: {
                 Label("Canvas \(Int(store.canvasSize.width))×\(Int(store.canvasSize.height))",
                       systemImage: "rectangle.dashed")
