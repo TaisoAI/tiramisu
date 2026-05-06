@@ -227,9 +227,19 @@ final class DocumentStore {
         }
         guard let bytes = smart.sourceBytes else { return }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Tiramisu-Smart", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("\(layer.id.uuidString).\(smart.sourceFormat)")
-        try? bytes.write(to: url, options: .atomic)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try bytes.write(to: url, options: .atomic)
+        } catch {
+            tlog("openSmartLayerInExternalEditor write failed: \(error.localizedDescription)")
+            let a = NSAlert()
+            a.messageText = "Couldn't open this smart layer in an external editor"
+            a.informativeText = "Failed to write a temporary copy: \(error.localizedDescription)"
+            a.alertStyle = .warning
+            a.runModal()
+            return
+        }
         layer.smart?.sourcePath = url.path
         startWatching(layer)
         NSWorkspace.shared.open(url)

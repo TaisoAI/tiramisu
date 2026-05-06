@@ -284,8 +284,25 @@ struct AppCommands: Commands {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let rep = NSBitmapImageRep(cgImage: image)
         rep.size = NSSize(width: image.width, height: image.height)
-        guard let data = rep.representation(using: .png, properties: [:]) else { return }
-        try? data.write(to: url)
+        guard let data = rep.representation(using: .png, properties: [:]) else {
+            let a = NSAlert()
+            a.messageText = "Could not encode PNG"
+            a.informativeText = "The canvas couldn't be encoded as PNG. This usually means the image is in an unsupported color space."
+            a.alertStyle = .warning
+            a.runModal()
+            return
+        }
+        do {
+            try data.write(to: url, options: .atomic)
+            tlog("exported PNG: \(url.path) (\(data.count) bytes)")
+        } catch {
+            tlog("exportPNG failed: \(error.localizedDescription)")
+            let a = NSAlert()
+            a.messageText = "Couldn't save \(url.lastPathComponent)"
+            a.informativeText = error.localizedDescription
+            a.alertStyle = .warning
+            a.runModal()
+        }
     }
 
     private func removeBackground() async {
