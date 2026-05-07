@@ -107,8 +107,10 @@ if ! git rev-parse "$TAG" >/dev/null 2>&1; then
     fail "git tag $TAG doesn't exist. Create it first:  git tag -a $TAG -m '$TAG'"
 fi
 
-# HEAD == tag
-if [[ "$(git rev-parse HEAD)" != "$(git rev-parse "$TAG")" ]]; then
+# HEAD == tag's commit. Annotated tags are their own object — dereference
+# with ^{commit} to get the underlying commit, otherwise this comparison
+# fails with "HEAD is not on $TAG" even when HEAD is correct.
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse "$TAG^{commit}")" ]]; then
     fail "HEAD is not on $TAG. Check out the tag first."
 fi
 
