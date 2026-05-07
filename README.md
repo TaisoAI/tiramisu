@@ -1,8 +1,8 @@
 <h1 align="center">Tiramisu</h1>
 
 <p align="center">
-  <strong>Free, open-source, AI-native image editor for macOS.</strong><br/>
-  Made for creators — not graphic designers.
+  <strong>A free, AI-native alternative to Photoshop — for macOS.</strong><br/>
+  Open source. Native to Apple Silicon. Made for creators.
 </p>
 
 <p align="center">
