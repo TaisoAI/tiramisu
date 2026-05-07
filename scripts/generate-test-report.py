@@ -337,6 +337,19 @@ def render_html(summary: dict, suites: list[dict], docs: dict,
     background: var(--card); border: 1px solid var(--line);
     border-radius: var(--rad); padding: 24px 28px; margin-bottom: 24px;
     box-shadow: 0 1px 3px rgba(74,44,26,0.06);
+    position: relative;
+  }}
+  .back-to-history {{
+    display: inline-block;
+    color: var(--muted); text-decoration: none;
+    font-size: 12px; font-weight: 600;
+    padding: 4px 10px; margin-bottom: 12px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: var(--bg);
+    transition: color 0.12s ease, border-color 0.12s ease;
+  }}
+  .back-to-history:hover {{
+    color: var(--cocoa); border-color: var(--cocoa);
   }}
   .meta {{ color: var(--muted); font-size: 13px; }}
   .meta code {{ background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; }}
@@ -449,6 +462,7 @@ def render_html(summary: dict, suites: list[dict], docs: dict,
 <body>
 <div class="wrap">
   <header class="top">
+    <a class="back-to-history" href="index.html" title="Browse all archived runs">← All runs</a>
     <h1>Tiramisu test report <span class="badge">{escape(result)}</span> {dirty_badge}</h1>
     <div class="meta">
       {escape(env)} · ran {escape(started)} · {duration_s:.2f}s ·

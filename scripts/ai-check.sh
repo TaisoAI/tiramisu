@@ -91,8 +91,12 @@ ln -snf "$RESULT_BUNDLE" "$PROJECT_DIR/build/test-results.xcresult"
 step "4/4  generate HTML test report"
 ARCHIVED_REPORT="$PROJECT_DIR/build/reports/${TIMESTAMP}-${SHORT_SHA}-${TEST_RESULT}.html"
 "$SCRIPT_DIR/generate-test-report.sh" "$RESULT_BUNDLE" "$ARCHIVED_REPORT"
-# Copy (not symlink) so the latest stays openable even if archives move.
-cp "$ARCHIVED_REPORT" "$PROJECT_DIR/build/test-report.html"
+# Copy to the canonical "latest" path. The archived report's "← All runs"
+# link is a relative href="index.html" (resolves correctly inside reports/);
+# the latest copy lives one level up, so rewrite the href to point into
+# reports/.
+sed 's|href="index.html"|href="reports/index.html"|g' \
+    "$ARCHIVED_REPORT" > "$PROJECT_DIR/build/test-report.html"
 ok "report written: $(basename "$ARCHIVED_REPORT")"
 
 # Refresh the history dashboard so all archived runs are browseable.
