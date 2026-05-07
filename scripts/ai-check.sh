@@ -93,9 +93,12 @@ ARCHIVED_REPORT="$PROJECT_DIR/build/reports/${TIMESTAMP}-${SHORT_SHA}-${TEST_RES
 "$SCRIPT_DIR/generate-test-report.sh" "$RESULT_BUNDLE" "$ARCHIVED_REPORT"
 # Copy (not symlink) so the latest stays openable even if archives move.
 cp "$ARCHIVED_REPORT" "$PROJECT_DIR/build/test-report.html"
-N_REPORTS="$(ls "$PROJECT_DIR/build/reports/" 2>/dev/null | wc -l | tr -d ' ')"
 ok "report written: $(basename "$ARCHIVED_REPORT")"
-ok "latest: build/test-report.html  ·  archive: build/reports/  ($N_REPORTS retained)"
+
+# Refresh the history dashboard so all archived runs are browseable.
+/usr/bin/env python3 "$SCRIPT_DIR/generate-history.py" "$PROJECT_DIR/build/reports" >/dev/null
+N_REPORTS="$(ls "$PROJECT_DIR/build/reports/" 2>/dev/null | grep -cE '^[0-9].*\.html$')"
+ok "latest: build/test-report.html  ·  history: build/reports/index.html  ($N_REPORTS runs archived)"
 
 if [[ "$OPEN_REPORT" == "1" ]]; then
   open "$PROJECT_DIR/build/test-report.html"
