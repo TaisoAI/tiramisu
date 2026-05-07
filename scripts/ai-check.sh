@@ -55,8 +55,13 @@ xcodebuild \
 ok "build succeeded"
 
 step "3/4  xcodebuild test"
-RESULT_BUNDLE="$PROJECT_DIR/build/test-results.xcresult"
-mkdir -p "$PROJECT_DIR/build"
+# Each run gets its own timestamped + sha-tagged xcresult so prior runs
+# stay around for "when did this start failing?" diffing. The build/
+# directory is gitignored, so this is local-only history.
+TIMESTAMP="$(date +%Y-%m-%dT%H-%M-%S)"
+SHORT_SHA="$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || echo nosha)"
+mkdir -p "$PROJECT_DIR/build/results" "$PROJECT_DIR/build/reports"
+RESULT_BUNDLE="$PROJECT_DIR/build/results/${TIMESTAMP}-${SHORT_SHA}.xcresult"
 rm -rf "$RESULT_BUNDLE"
 
 TEST_ARGS=(
@@ -71,16 +76,26 @@ if [[ "$WITH_UI" == "1" ]]; then
   TEST_ARGS+=( -only-testing:TiramisuUITests )
 fi
 
+TEST_RESULT="passed"
 if xcodebuild "${TEST_ARGS[@]}" test 2>&1 | tail -5; then
   ok "tests passed"
 else
   fail "tests failed (see $RESULT_BUNDLE)"
+  TEST_RESULT="failed"
   # don't exit — still generate the report so the user can see what failed
 fi
 
+# Symlink at the canonical "latest" path so existing references keep working.
+ln -snf "$RESULT_BUNDLE" "$PROJECT_DIR/build/test-results.xcresult"
+
 step "4/4  generate HTML test report"
-"$SCRIPT_DIR/generate-test-report.sh" "$RESULT_BUNDLE" "$PROJECT_DIR/build/test-report.html"
-ok "report written: build/test-report.html"
+ARCHIVED_REPORT="$PROJECT_DIR/build/reports/${TIMESTAMP}-${SHORT_SHA}-${TEST_RESULT}.html"
+"$SCRIPT_DIR/generate-test-report.sh" "$RESULT_BUNDLE" "$ARCHIVED_REPORT"
+# Copy (not symlink) so the latest stays openable even if archives move.
+cp "$ARCHIVED_REPORT" "$PROJECT_DIR/build/test-report.html"
+N_REPORTS="$(ls "$PROJECT_DIR/build/reports/" 2>/dev/null | wc -l | tr -d ' ')"
+ok "report written: $(basename "$ARCHIVED_REPORT")"
+ok "latest: build/test-report.html  ·  archive: build/reports/  ($N_REPORTS retained)"
 
 if [[ "$OPEN_REPORT" == "1" ]]; then
   open "$PROJECT_DIR/build/test-report.html"
