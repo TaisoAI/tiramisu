@@ -92,32 +92,36 @@ if ! command -v mflux-generate-fill >/dev/null 2>&1; then
 fi
 ok "mflux-generate-fill is on PATH at $(command -v mflux-generate-fill)"
 
-# ── 3. huggingface-cli ───────────────────────────────────────────────
-log "Step 3/6 — ensuring huggingface-cli is available…"
-if ! command -v huggingface-cli >/dev/null 2>&1; then
+# ── 3. Hugging Face CLI ──────────────────────────────────────────────
+# huggingface_hub 0.34+ renamed the CLI from `huggingface-cli` to `hf`.
+# The old name still exists as a deprecated wrapper but its subcommands
+# (whoami, download) now error out — so we use `hf` and fall back only
+# if it's missing.
+log "Step 3/6 — ensuring Hugging Face CLI (hf) is available…"
+if ! command -v hf >/dev/null 2>&1; then
     log "Installing huggingface_hub via uv tool…"
     uv tool install "huggingface_hub[cli]" || fail "Failed to install huggingface_hub."
 fi
-ok "huggingface-cli $(huggingface-cli --version 2>&1 | head -1 | awk '{print $NF}')"
+command -v hf >/dev/null 2>&1 || fail "hf still missing after install. Run 'uv tool list' to inspect."
+ok "hf $(hf version 2>&1 | head -1 | awk '{print $NF}')"
 
 # ── 4. HF token ──────────────────────────────────────────────────────
 log "Step 4/6 — checking Hugging Face authentication…"
-if huggingface-cli whoami >/dev/null 2>&1; then
-    HF_USER="$(huggingface-cli whoami 2>&1 | head -1)"
-    ok "Logged into Hugging Face as: $HF_USER"
+if HF_USER="$(hf auth whoami 2>&1)" && [[ -n "$HF_USER" && "$HF_USER" != *"Not logged in"* ]]; then
+    ok "Logged into Hugging Face as: $(echo "$HF_USER" | head -1)"
 else
     warn "Not logged into Hugging Face."
     cat <<'EOF'
 
 The FLUX-Fill model is GATED — you need a Hugging Face account, must accept
-the model license, then log in via huggingface-cli.
+the model license, then log in via the hf CLI.
 
   1. Sign up:  https://huggingface.co/join
   2. Accept the FLUX-Fill license:
      https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev
      (click "Agree and access repository" near the top)
   3. Create a read token:  https://huggingface.co/settings/tokens
-  4. Run:  huggingface-cli login   (paste the token when prompted)
+  4. Run:  hf auth login   (paste the token when prompted)
 
 Then re-run this script.
 EOF
@@ -129,9 +133,7 @@ if [[ "$SKIP_DOWNLOAD" -eq 1 ]]; then
     log "Step 5/6 — skipped (--skip-download)."
 else
     log "Step 5/6 — pre-fetching FLUX-Fill weights (~24 GB; takes a while)…"
-    # mflux fetches on first generation; doing a no-op query forces the cache
-    # to populate without actually rendering. Touching the model id is enough.
-    huggingface-cli download \
+    hf download \
         black-forest-labs/FLUX.1-Fill-dev \
         --quiet \
         || fail "Model download failed. Did you accept the license at https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev ?"
