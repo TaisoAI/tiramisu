@@ -35,6 +35,7 @@ struct CanvasView: View {
                             .frame(width: dw, height: dh)
                             .allowsHitTesting(false)
                     }
+                    .offset(x: store.viewportPan.width, y: store.viewportPan.height)
                     .onTapGesture(count: 2) {
                         if let layer = store.activeLayer, layer.smart != nil {
                             store.openSmartLayerInExternalEditor(layer)
@@ -43,15 +44,25 @@ struct CanvasView: View {
 
                 // Transform handles fill the entire stage, so they never clip at the
                 // canvas edge regardless of scale or position. The overlay needs to
-                // know where the image sits inside the stage to map its coordinates.
+                // know where the image sits inside the stage — and that origin
+                // shifts with the viewport pan so handles track the panned image.
                 TransformOverlay(
                     docToView: scale,
-                    imageOrigin: CGPoint(x: (proxy.size.width - dw) / 2,
-                                         y: (proxy.size.height - dh) / 2)
+                    imageOrigin: CGPoint(
+                        x: (proxy.size.width - dw) / 2 + store.viewportPan.width,
+                        y: (proxy.size.height - dh) / 2 + store.viewportPan.height
+                    )
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Two-finger trackpad pan — caught by the NSView at the back of
+            // the ZStack. SwiftUI gestures don't see scroll-wheel events, so
+            // we go through AppKit for this one.
+            .background(CanvasScrollCatcher { dx, dy in
+                store.viewportPan.width  += dx
+                store.viewportPan.height += dy
+            })
             .gesture(
                 MagnifyGesture()
                     .onChanged { value in

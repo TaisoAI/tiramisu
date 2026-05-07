@@ -17,6 +17,7 @@ final class DocumentStore {
     var isDirty: Bool = false
     var viewportZoom: Double = 1.0     // trackpad pinch / shortcut zoom
     var viewportZoomBase: Double = 1.0
+    var viewportPan: CGSize = .zero    // two-finger trackpad pan (logical pixels)
     var recentFiles: [URL] = []
     var showSafeArea: Bool = false
     var showRuleOfThirds: Bool = false
