@@ -32,7 +32,19 @@ For the full vision + strategy + design direction, see **[tiramisu.hanley.world]
 
 ## Screenshots
 
-> Coming with v0.1. Watch this space.
+<p align="center">
+  <img src="docs/screenshots/main-window.png" alt="Tiramisu main window — layered editing of a YouTube-thumbnail composition" width="860"/>
+</p>
+
+<p align="center"><em>Layered editing surface: tools, canvas, properties / adjust / effects, layers panel.</em></p>
+
+### 16 blend modes — Photoshop parity, locked into the test suite
+
+Every blend mode has a committed visual reference. Any pixel-level regression in the renderer fails its specific test.
+
+<p align="center">
+  <img src="docs/screenshots/blend-modes.png" alt="All 16 blend modes rendered against the same gradient × solid fixture" width="720"/>
+</p>
 
 ## Requirements
 
