@@ -319,6 +319,8 @@ final class ControlServer {
                 return httpResponse(status: 500, body: "Expand failed: \(threwError)")
             }
             return jsonResponse(["ok": true])
+        case "showWelcome":
+            WelcomeWindow.show(forced: true)
         case "setZoom":
             guard let z = obj["zoom"] as? Double else {
                 return httpResponse(status: 400, body: "Need 'zoom' (Double, 0.05–8)")
