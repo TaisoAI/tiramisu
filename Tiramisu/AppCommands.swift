@@ -324,19 +324,12 @@ struct AppCommands: Commands {
         do {
             store.checkpoint("Remove Background")
             tlog("Remove BG: starting Vision segmentation on \(cg.width)x\(cg.height) image")
-            let cutout = try await BackgroundRemover.remove(cg)
-            tlog("Remove BG: cutout \(cutout.width)x\(cutout.height)")
-            if layer.smart != nil {
-                // Re-encode as PNG so alpha is preserved, update the smart source bytes.
-                guard let pngData = LayerSnapshot.encodePNG(cutout) else {
-                    tlog("Remove BG: PNG encode failed"); NSSound.beep(); return
-                }
-                layer.smart?.sourceBytes = pngData
-                layer.smart?.sourceFormat = "png"
-                // If there was a backing file, the edits live in-app (not rewritten to disk).
-            } else {
-                layer.raster = cutout
-            }
+            // v0.4: non-destructive — produce a layer mask instead of baking
+            // alpha into the source. Mask is stored at source pixel size and
+            // applied in canvas coords by the renderer.
+            let mask = try BackgroundRemover.mask(from: cg)
+            tlog("Remove BG: mask \(mask.width)x\(mask.height)")
+            layer.mask = mask
             store.invalidate()
         } catch {
             NSSound.beep()

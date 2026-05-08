@@ -271,7 +271,42 @@ private struct TextEditorPanel: View {
             InspectorRow("Tracking") {
                 InspectorSlider($layer.text.tracking, in: -20...60, format: .signedInteger) { store.invalidate() }
             }
+            InspectorRow("Rotation") {
+                InspectorSlider($layer.text.rotation, in: -180...180, format: .degrees) { store.invalidate() }
+            }
+            InspectorRow("Rotate") {
+                HStack(spacing: 6) {
+                    Button { rotateTextBy(-90) } label: {
+                        Image(systemName: "rotate.left")
+                    }
+                    .buttonStyle(.bordered).controlSize(.small)
+                    .help("Rotate 90° counterclockwise")
+
+                    Button { rotateTextBy(90) } label: {
+                        Image(systemName: "rotate.right")
+                    }
+                    .buttonStyle(.bordered).controlSize(.small)
+                    .help("Rotate 90° clockwise")
+
+                    Button("180°") { rotateTextBy(180) }
+                        .buttonStyle(.bordered).controlSize(.small)
+                        .help("Rotate 180°")
+                    Spacer()
+                }
+            }
         }
+    }
+
+    /// Same snap+wrap semantics as the smart-object rotate buttons so the
+    /// behavior is predictable across layer kinds.
+    private func rotateTextBy(_ delta: Double) {
+        store.checkpoint("Rotate Text")
+        let current = layer.text.rotation
+        var next = ((current + delta).rounded() / 90).rounded() * 90
+        if next > 180 { next -= 360 }
+        if next <= -180 { next += 360 }
+        layer.text.rotation = next
+        store.invalidate()
     }
 
     @ViewBuilder
@@ -372,6 +407,20 @@ private struct SmartObjectPanel: View {
     @Environment(DocumentStore.self) private var store
     @Bindable var layer: PXLayer
 
+    /// Bumps the layer's rotation by `delta` and snaps the result to the
+    /// nearest 90° step, then wraps to (-180, 180]. Snapping protects against
+    /// drift if the slider has been nudged off a clean 90° boundary; clicking
+    /// "+90" twice from any angle still lands you on a square multiple.
+    private func rotateBy(_ delta: Double) {
+        store.checkpoint("Rotate Layer")
+        let current = layer.smart?.rotationDeg ?? 0
+        var next = ((current + delta).rounded() / 90).rounded() * 90
+        if next > 180 { next -= 360 }
+        if next <= -180 { next += 360 }
+        layer.smart?.rotationDeg = next
+        store.invalidate()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: InspectorMetrics.rowSpacing) {
             if let smart = layer.smart {
@@ -423,6 +472,29 @@ private struct SmartObjectPanel: View {
                     format: .degrees
                 ) { store.invalidate() }
             }
+            InspectorRow("Rotate") {
+                HStack(spacing: 6) {
+                    Button { rotateBy(-90) } label: {
+                        Image(systemName: "rotate.left")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Rotate 90° counterclockwise")
+
+                    Button { rotateBy(90) } label: {
+                        Image(systemName: "rotate.right")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Rotate 90° clockwise")
+
+                    Button("180°") { rotateBy(180) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Rotate 180°")
+                    Spacer()
+                }
+            }
             InspectorRow("Flip") {
                 HStack(spacing: 6) {
                     Toggle("H", isOn: Binding(
@@ -460,12 +532,10 @@ private struct CutoutPanel: View {
         defer { isRemovingBG = false }
         do {
             store.checkpoint("Remove Background")
-            let cutout = try await BackgroundRemover.remove(cg)
-            if let png = LayerSnapshot.encodePNG(cutout) {
-                layer.smart?.sourceBytes = png
-                layer.smart?.sourceFormat = "png"
-                store.invalidate()
-            }
+            // v0.4: non-destructive — set layer.mask, leave the source alone.
+            let mask = try BackgroundRemover.mask(from: cg)
+            layer.mask = mask
+            store.invalidate()
         } catch {
             NSSound.beep()
             terr("Cutout Remove BG failed: \(error)")

@@ -99,6 +99,18 @@ struct LayerRow: View {
                 .contentShape(Rectangle())
                 .onTapGesture { store.activeLayerID = layer.id }
 
+            // v0.4: layer mask preview. Sits next to the content thumbnail, so
+            // a glance tells you which layers carry a mask. Hidden when nil to
+            // keep the row compact for the no-mask case.
+            if let mask = layer.mask {
+                LayerMaskThumbnail(mask: mask)
+                    .frame(width: 22, height: 22)
+                    .cornerRadius(3)
+                    .help("Layer mask — right-click row for actions")
+                    .contentShape(Rectangle())
+                    .onTapGesture { store.activeLayerID = layer.id }
+            }
+
             Group {
                 if isEditing {
                     TextField("", text: $draftName)
@@ -140,6 +152,31 @@ struct LayerRow: View {
             Button("Send Backward") { store.moveBackward(layer.id) }
             Button("Send to Back") { store.moveToBack(layer.id) }
             Divider()
+            // Layer mask actions (v0.4). Photoshop convention: a layer always
+            // either has a mask or doesn't; "Add" creates a fully-white mask
+            // ready for editing. Inversion / deletion are the two destructive
+            // operations users reach for most.
+            if layer.mask == nil {
+                Button("Add Layer Mask") {
+                    store.checkpoint("Add Layer Mask")
+                    layer.mask = LayerMaskFactory.solidWhite(size: store.canvasSize)
+                    store.invalidate()
+                }
+            } else {
+                Button("Invert Mask") {
+                    if let m = layer.mask, let inv = BackgroundRemover.invert(m) {
+                        store.checkpoint("Invert Mask")
+                        layer.mask = inv
+                        store.invalidate()
+                    }
+                }
+                Button("Delete Mask") {
+                    store.checkpoint("Delete Mask")
+                    layer.mask = nil
+                    store.invalidate()
+                }
+            }
+            Divider()
             Button("Delete", role: .destructive) {
                 store.activeLayerID = layer.id
                 store.removeActive()
@@ -166,6 +203,44 @@ struct LayerRow: View {
         case .gradient: return "G"
         case .solid: return "S"
         }
+    }
+}
+
+/// Tiny grayscale preview of a layer mask. Drawn over a dark backing so
+/// pure-white masks read as "fully reveal" and pure-black as "fully hide"
+/// without ambiguity.
+private struct LayerMaskThumbnail: View {
+    let mask: CGImage
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(Color(white: 0.08))
+            Image(decorative: mask, scale: 1)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .clipped()
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .strokeBorder(.white.opacity(0.35), lineWidth: 0.8)
+        )
+    }
+}
+
+/// One-shot factory for the white starter mask "Add Layer Mask" hands users.
+/// White (1.0) reveals, so a fresh mask is a no-op until the user paints or
+/// generates content into it.
+enum LayerMaskFactory {
+    static func solidWhite(size: CGSize) -> CGImage? {
+        let w = max(1, Int(size.width)), h = max(1, Int(size.height))
+        guard let cs = CGColorSpace(name: CGColorSpace.linearGray),
+              let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: cs,
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        ctx.setFillColor(CGColor(gray: 1.0, alpha: 1.0))
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
     }
 }
 

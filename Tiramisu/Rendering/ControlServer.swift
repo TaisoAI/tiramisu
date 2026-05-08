@@ -27,6 +27,10 @@ import AppKit
 ///         - "setTextColor"  { "id": "<uuid>", "hex": "ff0000" }       // whole layer
 ///         - "setLayerOpacity" { "id":"...", "opacity": 0.5 }
 ///         - "toggleVisible" { "id": "..." }
+///         - "setLayerMask"  { "id": "...", "path": "/tmp/mask.png" }      // grayscale PNG; defaults to active layer
+///         - "clearLayerMask" { "id": "..." }
+///         - "invertLayerMask" { "id": "..." }
+///         - "removeBackground" { "id": "..." }                            // sets layer.mask via Vision (non-destructive)
 ///         - "moveLayer"     { "id":"...", "x":0,"y":0 }               // absolute offset
 ///         - "setCanvas"     { "width": 1920, "height": 1080 }
 ///         - "setBackground" { "hex": "0d1220" }
@@ -235,6 +239,56 @@ final class ControlServer {
             }
         case "toggleVisible":
             if let id = obj["id"] as? String, let L = layer(id) { L.visible.toggle(); store.invalidate() }
+        case "setLayerMask":
+            // Load a grayscale (or RGBA — we just sample R) PNG from disk and
+            // assign as the active or specified layer's mask. Used by the
+            // headless smoke-test harness to inject deterministic masks.
+            guard let path = obj["path"] as? String,
+                  let img = NSImage(contentsOfFile: path)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                return httpResponse(status: 400, body: "Missing or unreadable 'path'")
+            }
+            let target: PXLayer? = (obj["id"] as? String).flatMap(layer) ?? store.activeLayer
+            guard let L = target else { return httpResponse(status: 404, body: "No target layer") }
+            store.checkpoint("Set Layer Mask")
+            L.mask = img
+            store.invalidate()
+            return jsonResponse(["ok": true, "id": L.id.uuidString])
+        case "clearLayerMask":
+            let target: PXLayer? = (obj["id"] as? String).flatMap(layer) ?? store.activeLayer
+            guard let L = target else { return httpResponse(status: 404, body: "No target layer") }
+            store.checkpoint("Delete Mask")
+            L.mask = nil
+            store.invalidate()
+            return jsonResponse(["ok": true])
+        case "invertLayerMask":
+            let target: PXLayer? = (obj["id"] as? String).flatMap(layer) ?? store.activeLayer
+            guard let L = target, let m = L.mask, let inv = BackgroundRemover.invert(m) else {
+                return httpResponse(status: 404, body: "No mask on target layer")
+            }
+            store.checkpoint("Invert Mask")
+            L.mask = inv
+            store.invalidate()
+            return jsonResponse(["ok": true])
+        case "removeBackground":
+            // Triggers the v0.4 non-destructive background removal: runs
+            // Vision foreground segmentation against the layer's source and
+            // assigns the result as a layer mask. Synchronous from the
+            // caller's perspective — blocks the HTTP response until done.
+            let target: PXLayer? = (obj["id"] as? String).flatMap(layer) ?? store.activeLayer
+            guard let L = target else { return httpResponse(status: 404, body: "No target layer") }
+            let src: CGImage?
+            if let smart = L.smart { src = SmartObjectEngine.loadSource(smart) }
+            else { src = L.raster }
+            guard let cg = src else { return httpResponse(status: 412, body: "Layer has no source image") }
+            do {
+                let mask = try BackgroundRemover.mask(from: cg)
+                store.checkpoint("Remove Background")
+                L.mask = mask
+                store.invalidate()
+                return jsonResponse(["ok": true])
+            } catch {
+                return httpResponse(status: 500, body: error.localizedDescription)
+            }
         case "moveLayer":
             if let id = obj["id"] as? String, let L = layer(id) {
                 L.offset = CGSize(width: obj["x"] as? Double ?? 0, height: obj["y"] as? Double ?? 0)

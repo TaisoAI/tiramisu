@@ -160,6 +160,83 @@ enum SmartObjectEngine {
         return LayerRenderer.ciContext.createCGImage(result, from: extent)
     }
 
+    /// Apply edge-cleanup operations (morphology / feather / threshold) to a
+    /// grayscale layer mask in SOURCE pixel space. v0.4 split: cutouts now
+    /// live on `layer.mask` rather than baked into the smart source alpha,
+    /// so the edge sliders that used to act on source alpha now act on the
+    /// mask instead. Works in source coords so a "5px feather" is consistent
+    /// regardless of how the smart object is placed on the canvas.
+    static func processMaskEdges(_ mask: CGImage,
+                                  offset: Double,
+                                  feather: Double,
+                                  threshold: Double) -> CGImage? {
+        if abs(offset) < 0.01 && feather < 0.01 && threshold < 0.001 { return nil }
+        var ci = CIImage(cgImage: mask)
+        let extent = ci.extent
+
+        if abs(offset) >= 0.01 {
+            // Positive = grow the visible (white) region; negative = shrink.
+            let name = offset > 0 ? "CIMorphologyMaximum" : "CIMorphologyMinimum"
+            ci = ci.applyingFilter(name, parameters: [kCIInputRadiusKey: abs(offset)])
+                .cropped(to: extent)
+        }
+        if feather >= 0.01 {
+            ci = ci.applyingGaussianBlur(sigma: feather).cropped(to: extent)
+        }
+        if threshold >= 0.001 {
+            // Linear remap: pixels below `threshold` go to 0, above go up to 1.
+            // Hardens the mask edge so feathered output reads as crisper.
+            let slope = CGFloat(1.0 / max(0.01, 1.0 - threshold))
+            let bias = CGFloat(-threshold * Double(slope))
+            let tf = CIFilter.colorMatrix()
+            tf.inputImage = ci
+            tf.rVector = CIVector(x: slope, y: 0, z: 0, w: 0)
+            tf.gVector = CIVector(x: 0, y: slope, z: 0, w: 0)
+            tf.bVector = CIVector(x: 0, y: 0, z: slope, w: 0)
+            tf.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+            tf.biasVector = CIVector(x: bias, y: bias, z: bias, w: 0)
+            if let out = tf.outputImage { ci = out.cropped(to: extent) }
+            let clamp = CIFilter.colorClamp()
+            clamp.inputImage = ci
+            clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 0)
+            clamp.maxComponents = CIVector(x: 1, y: 1, z: 1, w: 1)
+            if let out = clamp.outputImage { ci = out.cropped(to: extent) }
+        }
+        return LayerRenderer.ciContext.createCGImage(ci, from: extent)
+    }
+
+    /// Rasterize a source-space mask through the SAME placement transform as
+    /// `rasterize` uses for the photo, so the resulting canvas-sized grayscale
+    /// mask aligns with the placed photo regardless of scale, rotation, flip,
+    /// or center position. White outside the photo's transformed footprint
+    /// (effectively unchanged) — actual hiding for the empty canvas region is
+    /// handled by the photo's own alpha channel during composite.
+    static func rasterizeMask(_ mask: CGImage, smart: SmartSource, canvas: CGSize) -> CGImage? {
+        guard let space = CGColorSpace(name: CGColorSpace.linearGray) else { return nil }
+        guard let ctx = CGContext(data: nil,
+                                  width: Int(canvas.width),
+                                  height: Int(canvas.height),
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: 0,
+                                  space: space,
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        // White outside the photo so the renderer's SourceIn step leaves the
+        // empty canvas regions alone — they're already alpha=0 from the photo
+        // and don't need the mask to hide them again.
+        ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+        ctx.fill(CGRect(origin: .zero, size: canvas))
+
+        ctx.translateBy(x: CGFloat(smart.centerX), y: canvas.height - CGFloat(smart.centerY))
+        ctx.rotate(by: -CGFloat(smart.rotationDeg) * .pi / 180)
+        let sx = CGFloat(smart.scaleX) * (smart.flipH ? -1 : 1)
+        let sy = CGFloat(smart.scaleY) * (smart.flipV ? -1 : 1)
+        ctx.scaleBy(x: sx, y: sy)
+        let w = CGFloat(mask.width), h = CGFloat(mask.height)
+        ctx.draw(mask, in: CGRect(x: -w / 2, y: -h / 2, width: w, height: h))
+        return ctx.makeImage()
+    }
+
     /// Compute a fit-to-canvas scale with margin so the dropped image doesn't overflow.
     static func initialTransform(sourceSize: CGSize, canvas: CGSize, margin: CGFloat = 0.9) -> (scale: Double, cx: Double, cy: Double) {
         let s = min((canvas.width * margin) / sourceSize.width,

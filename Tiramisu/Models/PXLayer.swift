@@ -292,6 +292,11 @@ struct TextContent: Codable, Sendable, Equatable {
     var color: ColorRGB = .white
     var anchorX: Double = 0.5
     var anchorY: Double = 0.5
+    /// Rotation in degrees, applied at composite time around the layer's
+    /// anchor point. 0 = no rotation, positive = clockwise. Cached
+    /// rasterization is unchanged by rotation — composite() bakes the rotate
+    /// into the placement transform alongside translation.
+    var rotation: Double = 0
 
     /// Optional rich-text data (RTF archive). When present, overrides the plain
     /// `string` and provides per-range colors / bold / italic / underline.
@@ -303,7 +308,7 @@ struct TextContent: Codable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case string, fontName, fontSize, weight, italic, underline, strikethrough, uppercase
-        case alignment, lineHeight, tracking, color, anchorX, anchorY, rtfData, lastRenderedBounds
+        case alignment, lineHeight, tracking, color, anchorX, anchorY, rotation, rtfData, lastRenderedBounds
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -322,6 +327,7 @@ struct TextContent: Codable, Sendable, Equatable {
         self.color = try c.decodeIfPresent(ColorRGB.self, forKey: .color) ?? .white
         self.anchorX = try c.decodeIfPresent(Double.self, forKey: .anchorX) ?? 0.5
         self.anchorY = try c.decodeIfPresent(Double.self, forKey: .anchorY) ?? 0.5
+        self.rotation = try c.decodeIfPresent(Double.self, forKey: .rotation) ?? 0
         self.rtfData = try c.decodeIfPresent(Data.self, forKey: .rtfData)
         self.lastRenderedBounds = try c.decodeIfPresent(CGRect.self, forKey: .lastRenderedBounds) ?? .zero
     }
@@ -422,6 +428,14 @@ final class PXLayer: Identifiable {
 
     // raster image buffer (nil for other kinds). Stored at document resolution.
     var raster: CGImage?
+
+    /// Layer mask — grayscale CGImage, canvas-resolution, in the layer's
+    /// untranslated render space. White (1.0) reveals, black (0.0) hides.
+    /// Applied AFTER adjustments/filters and BEFORE layer styles, so stroke /
+    /// glow / drop shadow trace the mask edge (Photoshop behavior). Decoupled
+    /// from smart-object source transforms — moving/scaling a smart object
+    /// does NOT move its mask. Nil = no mask = fully visible.
+    var mask: CGImage?
 
     // type-specific content
     var text: TextContent = TextContent()

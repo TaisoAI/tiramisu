@@ -45,15 +45,30 @@ enum LayerRenderer {
 
             // For text layers, the rasterization is centered; apply the user's
             // anchor as a cheap translation here so dragging doesn't invalidate
-            // the cached render.
+            // the cached render. Rotation is also applied at composite time so
+            // dragging or spinning the rotation slider doesn't re-rasterize.
             var tx = CGFloat(layer.offset.width)
             var ty = -CGFloat(layer.offset.height)
             if layer.kind == .text {
                 tx += (CGFloat(layer.text.anchorX) - 0.5) * size.width
                 ty -= (CGFloat(layer.text.anchorY) - 0.5) * size.height
             }
+            var transform = CGAffineTransform(translationX: tx, y: ty)
+            if layer.kind == .text, abs(layer.text.rotation) > 0.01 {
+                // Rotate around the on-canvas anchor point (post-translate).
+                // CG y-axis is bottom-up so positive degrees rotate visually
+                // clockwise after we negate; that matches the rotate-right
+                // convention used by the smart-object rotation slider.
+                let ax = CGFloat(layer.text.anchorX) * size.width
+                let ay = (1 - CGFloat(layer.text.anchorY)) * size.height
+                let rad = -CGFloat(layer.text.rotation) * .pi / 180
+                transform = transform
+                    .concatenating(CGAffineTransform(translationX: -ax, y: -ay))
+                    .concatenating(CGAffineTransform(rotationAngle: rad))
+                    .concatenating(CGAffineTransform(translationX: ax, y: ay))
+            }
             let placed = layerImg
-                .transformed(by: CGAffineTransform(translationX: tx, y: ty))
+                .transformed(by: transform)
                 .applyingOpacity(layer.opacity)
             accum = compositeBlend(top: placed, bottom: accum, mode: layer.blend)
         }
@@ -94,8 +109,9 @@ enum LayerRenderer {
             // KB), so hashing the full blob is cheap and catches any attribute
             // change — header stays identical when only run attributes flip.
             if let d = L.text.rtfData { h.combine(d) }
-            // anchor excluded — it's applied as a translation at composite time so
-            // dragging text doesn't invalidate the cache.
+            // anchor + rotation excluded — both are applied as a transform at
+            // composite time so dragging or rotating doesn't invalidate the
+            // (expensive) text rasterization.
         case .gradient:
             let g = L.gradient
             h.combine(g.kind); h.combine(g.angle)
@@ -125,6 +141,14 @@ enum LayerRenderer {
         h.combine(S.outerGlow.enabled); h.combine(S.outerGlow.size); h.combine(S.outerGlow.opacity)
         h.combine(S.stroke.enabled); h.combine(S.stroke.size); h.combine(S.stroke.opacity)
         h.combine(S.gradientFill.enabled); h.combine(S.gradientFill.angle); h.combine(S.gradientFill.opacity)
+        if let m = L.mask {
+            // Mask identity — re-renders if the user replaces or inverts.
+            h.combine(ObjectIdentifier(m))
+            // For smart objects, the placement transform is part of the mask
+            // application path (see render() above). Already covered by the
+            // smart-object hashing earlier in this function — no extra combines
+            // needed here.
+        } else { h.combine(0) }
         return h.finalize()
     }
 
@@ -234,6 +258,42 @@ enum LayerRenderer {
         // 5. Relight
         if layer.relight.enabled { img = Relighter.apply(img, settings: layer.relight, extent: extent) }
 
+        // 5b. Layer mask — Photoshop semantics. Mask is grayscale (white = reveal,
+        // black = hide); we convert luma → alpha and then SourceIn with the
+        // current image so anything the mask hides becomes transparent. Applied
+        // here so the layer styles below (gradient fill, stroke, glow, drop
+        // shadow) all trace the masked edge instead of the original alpha.
+        //
+        // For smart objects the stored mask is in SOURCE pixel space (Vision
+        // ran on the un-transformed photo). We have to push it through the
+        // same placement transform as the photo before applying, otherwise the
+        // mask floats in canvas space and stops tracking when the user moves
+        // or scales the smart object.
+        if let mask = layer.mask {
+            let resolvedMask: CGImage
+            if let smart = layer.smart {
+                // Edge sliders (Offset / Feather / Threshold) act on the mask
+                // in source space first — that's where the original Vision
+                // segmentation lived, and it keeps "5px feather" feeling the
+                // same regardless of canvas placement. Then push the mask
+                // through the smart-object transform so it lines up with
+                // the placed photo.
+                let edged = SmartObjectEngine.processMaskEdges(
+                    mask,
+                    offset: smart.edgeOffset,
+                    feather: smart.edgeFeather,
+                    threshold: smart.edgeThreshold) ?? mask
+                if let placed = SmartObjectEngine.rasterizeMask(edged, smart: smart, canvas: canvasSize) {
+                    resolvedMask = placed
+                } else {
+                    resolvedMask = edged
+                }
+            } else {
+                resolvedMask = mask
+            }
+            img = applyLayerMask(img, mask: resolvedMask, extent: extent)
+        }
+
         // 6. Gradient fill (clipped to base alpha)
         if layer.styles.gradientFill.enabled {
             let gf = layer.styles.gradientFill
@@ -275,6 +335,38 @@ enum LayerRenderer {
         }
 
         return img
+    }
+
+    // MARK: - Layer mask
+
+    /// Converts a grayscale mask CGImage into an alpha-only CIImage (R→A,
+    /// RGB=0) sized to the canvas extent, then SourceIn-composites with the
+    /// current image so masked-out pixels become transparent. The mask CGImage
+    /// is expected to be canvas-resolution; if it isn't, it's stretched to fit.
+    static func applyLayerMask(_ img: CIImage, mask: CGImage, extent: CGRect) -> CIImage {
+        let maskCI = CIImage(cgImage: mask)
+        // Stretch mask to canvas size if it doesn't already match.
+        let scaledMask: CIImage
+        if abs(maskCI.extent.width - extent.width) < 0.5 && abs(maskCI.extent.height - extent.height) < 0.5 {
+            scaledMask = maskCI
+        } else {
+            let sx = extent.width / max(1, maskCI.extent.width)
+            let sy = extent.height / max(1, maskCI.extent.height)
+            scaledMask = maskCI.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
+        }
+        // Map luma → alpha. CIColorMatrix lets us set rgb=0 and a = R + G + B
+        // weighted; the input is grayscale, so any of R/G/B is the same.
+        let toAlpha = CIFilter.colorMatrix()
+        toAlpha.inputImage = scaledMask
+        toAlpha.rVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        toAlpha.gVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        toAlpha.bVector = CIVector(x: 0, y: 0, z: 0, w: 0)
+        toAlpha.aVector = CIVector(x: 1, y: 0, z: 0, w: 0)
+        let alphaMask = (toAlpha.outputImage ?? scaledMask).cropped(to: extent)
+        // SourceIn keeps img where alphaMask is opaque, drops it where mask is 0.
+        return img.applyingFilter("CISourceInCompositing", parameters: [
+            "inputBackgroundImage": alphaMask
+        ]).cropped(to: extent)
     }
 
     // MARK: - Helpers

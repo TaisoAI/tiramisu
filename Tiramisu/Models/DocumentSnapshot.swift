@@ -24,6 +24,9 @@ struct LayerSnapshot: Codable {
     var offsetX: Double = 0
     var offsetY: Double = 0
     var rasterPNG: Data?
+    /// Layer mask, PNG-encoded grayscale. Added in v0.4 — old documents
+    /// decode with mask = nil and behave exactly as before.
+    var maskPNG: Data?
     var text: TextContent = TextContent()
     var gradient: GradientContent = GradientContent()
     var solid: SolidContent = SolidContent()
@@ -38,7 +41,7 @@ struct LayerSnapshot: Codable {
     // Anything absent falls back to the field's default — so files saved before
     // we added `solid`, `smart`, new edge tweaks, etc. still load.
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, visible, opacity, blend, offsetX, offsetY, rasterPNG
+        case id, name, kind, visible, opacity, blend, offsetX, offsetY, rasterPNG, maskPNG
         case text, gradient, solid, smart, adjust, filters, relight, skin, styles
     }
     init(from decoder: Decoder) throws {
@@ -52,6 +55,7 @@ struct LayerSnapshot: Codable {
         self.offsetX = try c.decodeIfPresent(Double.self, forKey: .offsetX) ?? 0
         self.offsetY = try c.decodeIfPresent(Double.self, forKey: .offsetY) ?? 0
         self.rasterPNG = try c.decodeIfPresent(Data.self, forKey: .rasterPNG)
+        self.maskPNG = try c.decodeIfPresent(Data.self, forKey: .maskPNG)
         self.text = try c.decodeIfPresent(TextContent.self, forKey: .text) ?? TextContent()
         self.gradient = try c.decodeIfPresent(GradientContent.self, forKey: .gradient) ?? GradientContent()
         self.solid = try c.decodeIfPresent(SolidContent.self, forKey: .solid) ?? SolidContent()
@@ -108,6 +112,7 @@ extension LayerSnapshot {
         self.offsetX = Double(layer.offset.width)
         self.offsetY = Double(layer.offset.height)
         self.rasterPNG = layer.raster.flatMap { LayerSnapshot.encodePNG($0) }
+        self.maskPNG = layer.mask.flatMap { LayerSnapshot.encodePNG($0) }
         self.text = layer.text
         self.gradient = layer.gradient
         self.solid = layer.solid
@@ -135,6 +140,7 @@ extension LayerSnapshot {
         L.skin = skin
         L.styles = styles
         if let data = rasterPNG { L.raster = LayerSnapshot.decodePNG(data) }
+        if let data = maskPNG { L.mask = LayerSnapshot.decodePNG(data) }
         return L
     }
 
