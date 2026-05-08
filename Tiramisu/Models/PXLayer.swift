@@ -53,6 +53,47 @@ enum CurvePreset: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// Per-range HSL adjustments, Lightroom-style. Eight color ranges
+/// (red/orange/yellow/green/aqua/blue/purple/magenta), each with a hue
+/// shift, saturation scale, and luminance scale. All three sliders are
+/// -1...1; 0 is identity.
+struct HSLAdjustments: Codable, Sendable, Equatable {
+    var redHue: Double = 0;     var redSat: Double = 0;     var redLum: Double = 0
+    var orangeHue: Double = 0;  var orangeSat: Double = 0;  var orangeLum: Double = 0
+    var yellowHue: Double = 0;  var yellowSat: Double = 0;  var yellowLum: Double = 0
+    var greenHue: Double = 0;   var greenSat: Double = 0;   var greenLum: Double = 0
+    var aquaHue: Double = 0;    var aquaSat: Double = 0;    var aquaLum: Double = 0
+    var blueHue: Double = 0;    var blueSat: Double = 0;    var blueLum: Double = 0
+    var purpleHue: Double = 0;  var purpleSat: Double = 0;  var purpleLum: Double = 0
+    var magentaHue: Double = 0; var magentaSat: Double = 0; var magentaLum: Double = 0
+
+    var isIdentity: Bool {
+        redHue == 0 && redSat == 0 && redLum == 0 &&
+        orangeHue == 0 && orangeSat == 0 && orangeLum == 0 &&
+        yellowHue == 0 && yellowSat == 0 && yellowLum == 0 &&
+        greenHue == 0 && greenSat == 0 && greenLum == 0 &&
+        aquaHue == 0 && aquaSat == 0 && aquaLum == 0 &&
+        blueHue == 0 && blueSat == 0 && blueLum == 0 &&
+        purpleHue == 0 && purpleSat == 0 && purpleLum == 0 &&
+        magentaHue == 0 && magentaSat == 0 && magentaLum == 0
+    }
+
+    /// Per-range deltas in (hue, sat, lum) order, indexed by the same hue-center
+    /// order the renderer's mixer uses (0°, 30°, 60°, 120°, 180°, 240°, 270°, 300°).
+    var asDeltaTable: [(h: Double, s: Double, l: Double)] {
+        [
+            (redHue,     redSat,     redLum),
+            (orangeHue,  orangeSat,  orangeLum),
+            (yellowHue,  yellowSat,  yellowLum),
+            (greenHue,   greenSat,   greenLum),
+            (aquaHue,    aquaSat,    aquaLum),
+            (blueHue,    blueSat,    blueLum),
+            (purpleHue,  purpleSat,  purpleLum),
+            (magentaHue, magentaSat, magentaLum),
+        ]
+    }
+}
+
 struct Adjustments: Codable, Sendable, Equatable {
     var brightness: Double = 0   // -1...1
     var contrast: Double = 0     // -1...1
@@ -70,20 +111,24 @@ struct Adjustments: Codable, Sendable, Equatable {
     /// graph editor lands in v0.4.
     var curve: CurvePreset = .linear
     var curveIntensity: Double = 1   // 0...1
+    /// Per-color HSL adjustments. Empty (all-zero) by default — no-op.
+    var hsl: HSLAdjustments = HSLAdjustments()
 
     enum CodingKeys: String, CodingKey {
         case brightness, contrast, exposure, saturation, warmth, shadows, highlights, vibrance
-        case curve, curveIntensity
+        case curve, curveIntensity, hsl
     }
     init() {}
     init(brightness: Double = 0, contrast: Double = 0, exposure: Double = 0,
          saturation: Double = 0, warmth: Double = 0, shadows: Double = 0,
          highlights: Double = 0, vibrance: Double = 0,
-         curve: CurvePreset = .linear, curveIntensity: Double = 1) {
+         curve: CurvePreset = .linear, curveIntensity: Double = 1,
+         hsl: HSLAdjustments = HSLAdjustments()) {
         self.brightness = brightness; self.contrast = contrast; self.exposure = exposure
         self.saturation = saturation; self.warmth = warmth
         self.shadows = shadows; self.highlights = highlights; self.vibrance = vibrance
         self.curve = curve; self.curveIntensity = curveIntensity
+        self.hsl = hsl
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -97,6 +142,7 @@ struct Adjustments: Codable, Sendable, Equatable {
         self.vibrance   = try c.decodeIfPresent(Double.self, forKey: .vibrance) ?? 0
         self.curve = try c.decodeIfPresent(CurvePreset.self, forKey: .curve) ?? .linear
         self.curveIntensity = try c.decodeIfPresent(Double.self, forKey: .curveIntensity) ?? 1
+        self.hsl = try c.decodeIfPresent(HSLAdjustments.self, forKey: .hsl) ?? HSLAdjustments()
     }
 }
 

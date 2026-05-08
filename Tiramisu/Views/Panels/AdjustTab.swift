@@ -15,6 +15,9 @@ struct AdjustTab: View {
                     InspectorSection("Lighting", defaultOpen: true) {
                         LightingPanel(layer: layer)
                     }
+                    InspectorSection("Color (HSL)", defaultOpen: false) {
+                        HSLPanel(layer: layer)
+                    }
                     if layer.kind == .raster || layer.kind == .text {
                         InspectorSection("Relight", defaultOpen: false) {
                             RelightPanel(layer: layer)
@@ -190,6 +193,227 @@ private struct PresetChip: View {
         }
         .buttonStyle(.plain)
         .help(preset.name)
+    }
+}
+
+// MARK: - HSL
+
+/// Lightroom-style per-color HSL panel. Three sub-tabs (Hue / Saturation /
+/// Luminance); each tab shows 8 colored sliders, one per band. Each slider's
+/// track is a gradient that visualizes what that slider does — Hue tracks
+/// fade through the band's hue range (e.g., Red Hue's track is magenta→red→
+/// orange so you feel which way you're shifting); Sat tracks go gray→full
+/// color; Lum tracks go black→band-color→white. Bipolar sliders snap to 0
+/// on double-click.
+private struct HSLPanel: View {
+    @Environment(DocumentStore.self) private var store
+    @Bindable var layer: PXLayer
+    @AppStorage("world.hanley.tiramisu.adjust.hsl.tab") private var tab: String = "hue"
+
+    enum HSLChannel { case hue, sat, lum }
+    private var activeChannel: HSLChannel {
+        switch tab { case "sat": return .sat; case "lum": return .lum; default: return .hue }
+    }
+
+    /// Hue centers in degrees match the renderer's band order.
+    private struct ColorBand: Identifiable {
+        let id: String
+        let label: String
+        let hueDeg: Double
+        let hueKey: WritableKeyPath<HSLAdjustments, Double>
+        let satKey: WritableKeyPath<HSLAdjustments, Double>
+        let lumKey: WritableKeyPath<HSLAdjustments, Double>
+    }
+
+    private static let bands: [ColorBand] = [
+        .init(id: "red",     label: "Red",     hueDeg: 0,
+              hueKey: \.redHue, satKey: \.redSat, lumKey: \.redLum),
+        .init(id: "orange",  label: "Orange",  hueDeg: 30,
+              hueKey: \.orangeHue, satKey: \.orangeSat, lumKey: \.orangeLum),
+        .init(id: "yellow",  label: "Yellow",  hueDeg: 60,
+              hueKey: \.yellowHue, satKey: \.yellowSat, lumKey: \.yellowLum),
+        .init(id: "green",   label: "Green",   hueDeg: 120,
+              hueKey: \.greenHue, satKey: \.greenSat, lumKey: \.greenLum),
+        .init(id: "aqua",    label: "Aqua",    hueDeg: 180,
+              hueKey: \.aquaHue, satKey: \.aquaSat, lumKey: \.aquaLum),
+        .init(id: "blue",    label: "Blue",    hueDeg: 240,
+              hueKey: \.blueHue, satKey: \.blueSat, lumKey: \.blueLum),
+        .init(id: "purple",  label: "Purple",  hueDeg: 270,
+              hueKey: \.purpleHue, satKey: \.purpleSat, lumKey: \.purpleLum),
+        .init(id: "magenta", label: "Magenta", hueDeg: 300,
+              hueKey: \.magentaHue, satKey: \.magentaSat, lumKey: \.magentaLum),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("", selection: $tab) {
+                Text("Hue").tag("hue")
+                Text("Saturation").tag("sat")
+                Text("Luminance").tag("lum")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Self.bands) { band in
+                    HSLBandRow(
+                        label: band.label,
+                        gradient: HSLPanel.gradient(forBand: band.hueDeg, channel: activeChannel),
+                        value: Binding(
+                            get: { layer.adjust.hsl[keyPath: keyForActiveTab(band)] },
+                            set: { layer.adjust.hsl[keyPath: keyForActiveTab(band)] = $0 }
+                        ),
+                        onCommit: { store.invalidate() }
+                    )
+                }
+            }
+
+            InspectorFootnote(footnoteForActiveTab)
+
+            HStack {
+                Spacer()
+                Button("Reset") {
+                    store.checkpoint("Reset HSL")
+                    layer.adjust.hsl = HSLAdjustments()
+                    store.invalidate()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+            }
+        }
+    }
+
+    private var footnoteForActiveTab: String {
+        switch activeChannel {
+        case .hue: return "Rotate each band's hue ±60° toward neighboring colors. Reds → magenta or orange; greens → yellow or aqua. Double-click to reset."
+        case .sat: return "Push each band toward gray (-1) or full color (+1) without touching other colors. Double-click to reset."
+        case .lum: return "Darken (-1) or brighten (+1) each band's pixels independently. Useful for darkening blue skies or brightening skin (orange / yellow). Double-click to reset."
+        }
+    }
+
+    private func keyForActiveTab(_ band: ColorBand) -> WritableKeyPath<HSLAdjustments, Double> {
+        switch tab {
+        case "sat": return band.satKey
+        case "lum": return band.lumKey
+        default:    return band.hueKey
+        }
+    }
+
+    /// Build the visual gradient for a slider track. Mirrors the renderer's
+    /// effect so the user feels what the slider does just by reading the bar.
+    static func gradient(forBand hueDeg: Double, channel: HSLChannel) -> LinearGradient {
+        switch channel {
+        case .hue:
+            // Sweep 60° centered on the band — magenta→red→orange for Red, etc.
+            let stops: [Color] = stride(from: -30.0, through: 30.0, by: 15.0).map { d in
+                Color(hue: ((hueDeg + d).truncatingRemainder(dividingBy: 360) + 360)
+                        .truncatingRemainder(dividingBy: 360) / 360,
+                      saturation: 0.85, brightness: 0.85)
+            }
+            return LinearGradient(colors: stops, startPoint: .leading, endPoint: .trailing)
+        case .sat:
+            // Gray (band desaturated) → full saturation at the band's hue.
+            let full = Color(hue: hueDeg / 360, saturation: 0.95, brightness: 0.85)
+            return LinearGradient(colors: [Color(white: 0.55), full],
+                                  startPoint: .leading, endPoint: .trailing)
+        case .lum:
+            // Black → band color → white. Band sits at the midpoint.
+            let band = Color(hue: hueDeg / 360, saturation: 0.85, brightness: 0.7)
+            return LinearGradient(colors: [.black, band, .white],
+                                  startPoint: .leading, endPoint: .trailing)
+        }
+    }
+}
+
+/// One row in the HSL panel: a left-aligned label, a colored bipolar slider,
+/// and a numeric readout. The slider has a center detent line and resets to
+/// 0 on double-click — matches Lightroom muscle memory.
+private struct HSLBandRow: View {
+    let label: String
+    let gradient: LinearGradient
+    @Binding var value: Double
+    let onCommit: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 56, alignment: .leading)
+                .lineLimit(1)
+            HSLBandSlider(value: $value, trackGradient: gradient, onCommit: onCommit)
+                .frame(maxWidth: .infinity)
+            Text(String(format: "%+.2f", value))
+                .font(.system(size: 11, weight: .regular).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 40, alignment: .trailing)
+        }
+    }
+}
+
+/// Custom bipolar slider (-1…1) with a gradient-filled track, a thumb, a
+/// center tick mark, and double-click-to-reset behavior. Built from scratch
+/// because SwiftUI's stock Slider can't host a colored track or a center
+/// detent in a way that looks production-quality.
+private struct HSLBandSlider: View {
+    @Binding var value: Double
+    let trackGradient: LinearGradient
+    let onCommit: () -> Void
+
+    private let trackHeight: CGFloat = 8
+    private let thumbSize: CGFloat = 14
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let clamped = max(-1, min(1, value))
+            let xForValue = CGFloat((clamped + 1) / 2) * w
+            ZStack(alignment: .leading) {
+                // Track
+                RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
+                    .fill(trackGradient)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
+                            .strokeBorder(.separator.opacity(0.4), lineWidth: 0.5)
+                    )
+                    .frame(height: trackHeight)
+                    .frame(maxHeight: .infinity, alignment: .center)
+
+                // Center detent
+                Rectangle()
+                    .fill(Color.white.opacity(0.55))
+                    .frame(width: 1, height: trackHeight + 4)
+                    .blendMode(.overlay)
+                    .offset(x: w / 2 - 0.5)
+
+                // Thumb
+                Circle()
+                    .fill(Color.white)
+                    .overlay(Circle().strokeBorder(Color.black.opacity(0.25), lineWidth: 0.5))
+                    .frame(width: thumbSize, height: thumbSize)
+                    .shadow(color: .black.opacity(0.25), radius: 1.5, y: 0.5)
+                    .offset(x: xForValue - thumbSize / 2)
+            }
+            .frame(height: max(trackHeight, thumbSize))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        let x = max(0, min(w, g.location.x))
+                        let v = Double(x / w) * 2 - 1
+                        // Snap to 0 within ±0.02 — gives a tactile detent at center.
+                        value = abs(v) < 0.02 ? 0 : max(-1, min(1, v))
+                        onCommit()
+                    }
+            )
+            .simultaneousGesture(
+                TapGesture(count: 2).onEnded {
+                    value = 0
+                    onCommit()
+                }
+            )
+        }
+        .frame(height: 16)
     }
 }
 

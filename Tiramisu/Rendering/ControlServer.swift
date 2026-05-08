@@ -336,6 +336,33 @@ final class ControlServer {
             case "shadows":    layer.adjust.shadows = val
             case "highlights": layer.adjust.highlights = val
             case "curveIntensity": layer.adjust.curveIntensity = val
+            // HSL — 8 bands × 3 sliders. Key format: "hsl.<band>.<channel>",
+            // e.g. "hsl.red.sat" or "hsl.blue.lum". Used for headless smoke
+            // tests of the Color (HSL) inspector section.
+            case "hsl.red.hue":     layer.adjust.hsl.redHue = val
+            case "hsl.red.sat":     layer.adjust.hsl.redSat = val
+            case "hsl.red.lum":     layer.adjust.hsl.redLum = val
+            case "hsl.orange.hue":  layer.adjust.hsl.orangeHue = val
+            case "hsl.orange.sat":  layer.adjust.hsl.orangeSat = val
+            case "hsl.orange.lum":  layer.adjust.hsl.orangeLum = val
+            case "hsl.yellow.hue":  layer.adjust.hsl.yellowHue = val
+            case "hsl.yellow.sat":  layer.adjust.hsl.yellowSat = val
+            case "hsl.yellow.lum":  layer.adjust.hsl.yellowLum = val
+            case "hsl.green.hue":   layer.adjust.hsl.greenHue = val
+            case "hsl.green.sat":   layer.adjust.hsl.greenSat = val
+            case "hsl.green.lum":   layer.adjust.hsl.greenLum = val
+            case "hsl.aqua.hue":    layer.adjust.hsl.aquaHue = val
+            case "hsl.aqua.sat":    layer.adjust.hsl.aquaSat = val
+            case "hsl.aqua.lum":    layer.adjust.hsl.aquaLum = val
+            case "hsl.blue.hue":    layer.adjust.hsl.blueHue = val
+            case "hsl.blue.sat":    layer.adjust.hsl.blueSat = val
+            case "hsl.blue.lum":    layer.adjust.hsl.blueLum = val
+            case "hsl.purple.hue":  layer.adjust.hsl.purpleHue = val
+            case "hsl.purple.sat":  layer.adjust.hsl.purpleSat = val
+            case "hsl.purple.lum":  layer.adjust.hsl.purpleLum = val
+            case "hsl.magenta.hue": layer.adjust.hsl.magentaHue = val
+            case "hsl.magenta.sat": layer.adjust.hsl.magentaSat = val
+            case "hsl.magenta.lum": layer.adjust.hsl.magentaLum = val
             default: return httpResponse(status: 400, body: "Unknown adjust key '\(key)'")
             }
             store.invalidate()

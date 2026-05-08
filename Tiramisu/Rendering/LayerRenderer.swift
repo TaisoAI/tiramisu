@@ -110,6 +110,7 @@ enum LayerRenderer {
         let A = L.adjust; h.combine(A.brightness); h.combine(A.contrast); h.combine(A.exposure)
         h.combine(A.saturation); h.combine(A.warmth); h.combine(A.shadows); h.combine(A.highlights)
         h.combine(A.vibrance); h.combine(A.curve); h.combine(A.curveIntensity)
+        for d in A.hsl.asDeltaTable { h.combine(d.h); h.combine(d.s); h.combine(d.l) }
         let F = L.filters; h.combine(F.blur); h.combine(F.noise); h.combine(F.noiseMono)
         h.combine(F.sharpen); h.combine(F.pixelate); h.combine(F.hueShift)
         h.combine(F.vignette); h.combine(F.vignetteFalloff); h.combine(F.grain); h.combine(F.grainSize)
@@ -322,6 +323,13 @@ enum LayerRenderer {
             f.amount = Float(adj.vibrance)
             out = f.outputImage ?? out
         }
+        // Per-color HSL — Lightroom-style 8-band targeted hue/sat/lum control.
+        // Implemented as a 3D LUT applied via CIColorCube; the LUT is generated
+        // on CPU and the heavy lift is one GPU-side cube lookup. Identity case
+        // (all 24 sliders at zero) skips the work.
+        if !adj.hsl.isIdentity {
+            out = applyHSL(out, hsl: adj.hsl)
+        }
         // Tone curve — preset shape lerped from linear by `curveIntensity`.
         // CIToneCurve takes 5 control points; we interpolate each point's Y
         // toward the preset's Y by intensity. At intensity=0 the curve is
@@ -339,6 +347,170 @@ enum LayerRenderer {
             out = f.outputImage ?? out
         }
         return out
+    }
+
+    // MARK: - HSL LUT
+
+    /// Hue centers in degrees for the 8 color ranges, in the same order as
+    /// `HSLAdjustments.asDeltaTable`. Matches Lightroom's hue band layout.
+    private static let hslHueCenters: [Double] = [0, 30, 60, 120, 180, 240, 270, 300]
+
+    /// Cache one LUT (raw cube data) per unique HSL parameter set. Slider
+    /// drags don't allocate beyond the first unique snapshot value, and the
+    /// cache caps itself so repeated tweaks don't grow it unbounded.
+    nonisolated(unsafe) private static var hslLUTCache: [Int: Data] = [:]
+    private static let hslLUTDimension: Int = 32
+
+    static func applyHSL(_ img: CIImage, hsl: HSLAdjustments) -> CIImage {
+        let key = hslHash(hsl)
+        let data: Data
+        if let cached = hslLUTCache[key] {
+            data = cached
+        } else {
+            data = makeHSLCubeData(hsl, dim: hslLUTDimension)
+            if hslLUTCache.count > 32 { hslLUTCache.removeAll(keepingCapacity: true) }
+            hslLUTCache[key] = data
+        }
+        // CIColorCubeWithColorSpace ensures the LUT (which we computed in sRGB
+        // HSV space) is applied to sRGB-encoded RGB values, even though the
+        // CIContext working space is extendedLinearSRGB.
+        let f = CIFilter(name: "CIColorCubeWithColorSpace")!
+        f.setValue(img, forKey: kCIInputImageKey)
+        f.setValue(hslLUTDimension, forKey: "inputCubeDimension")
+        f.setValue(data, forKey: "inputCubeData")
+        if let srgb = CGColorSpace(name: CGColorSpace.sRGB) {
+            f.setValue(srgb, forKey: "inputColorSpace")
+        }
+        return f.outputImage ?? img
+    }
+
+    private static func hslHash(_ hsl: HSLAdjustments) -> Int {
+        var h = Hasher()
+        for d in hsl.asDeltaTable { h.combine(d.h); h.combine(d.s); h.combine(d.l) }
+        return h.finalize()
+    }
+
+    /// Builds a 32×32×32 RGBA float LUT that, for each cell, applies per-band
+    /// hue/sat/lum offsets weighted by the cell's hue position relative to
+    /// the 8 standard color bands (red/orange/yellow/green/aqua/blue/purple/
+    /// magenta). Each pixel is influenced by its two adjacent band centers
+    /// (linear interpolation in hue), so weights always sum to 1 and the
+    /// transitions are smooth.
+    private static func makeHSLCubeData(_ hsl: HSLAdjustments, dim: Int) -> Data {
+        let table = hsl.asDeltaTable
+        let centers = hslHueCenters
+        let n = centers.count
+
+        let count = dim * dim * dim * 4
+        var bytes = [Float](repeating: 0, count: count)
+
+        // CIColorCube expects sRGB cube. We unpremultiply per spec; alpha=1.
+        for b in 0..<dim {
+            let bf = Float(b) / Float(dim - 1)
+            for g in 0..<dim {
+                let gf = Float(g) / Float(dim - 1)
+                for r in 0..<dim {
+                    let rf = Float(r) / Float(dim - 1)
+                    var (h, s, v) = rgbToHSV(r: rf, g: gf, b: bf)
+
+                    // For an unsaturated pixel, hue is undefined and per-band
+                    // adjustments shouldn't apply. Scale the effect by saturation
+                    // so neutrals are preserved.
+                    let satWeight = s
+
+                    if satWeight > 0.0001 {
+                        // Find which two adjacent band centers bracket the hue.
+                        let hDeg = Double(h * 360)
+                        var idxA = 0
+                        var idxB = 0
+                        var t: Double = 0
+                        for i in 0..<n {
+                            let cA = centers[i]
+                            let cB = centers[(i + 1) % n]
+                            let span = (cB - cA + 360).truncatingRemainder(dividingBy: 360)
+                            // distance from cA to hDeg, going forward through the wheel
+                            let dist = (hDeg - cA + 360).truncatingRemainder(dividingBy: 360)
+                            if dist < span || (dist == 0 && i == 0) {
+                                idxA = i
+                                idxB = (i + 1) % n
+                                t = span > 0 ? dist / span : 0
+                                break
+                            }
+                        }
+                        let wA = 1 - t
+                        let wB = t
+                        let dA = table[idxA]
+                        let dB = table[idxB]
+                        // Hue shift: map slider [-1...1] to ±60° rotation.
+                        // Wide enough that pushing a slider to its extreme
+                        // visibly moves the band into an adjacent one (e.g.,
+                        // greens to yellow), matching Lightroom's feel.
+                        let dH = (wA * dA.h + wB * dB.h) * 60.0
+                        // Saturation: slider [-1...1] is multiplicative scale ±1.
+                        // Negative drives toward gray; positive boosts.
+                        let dS = wA * dA.s + wB * dB.s
+                        // Luminance: slider [-1...1] scales V proportionally.
+                        let dL = wA * dA.l + wB * dB.l
+
+                        // Apply weighted by saturation so neutrals don't drift.
+                        h = Float(((Double(h * 360) + dH * Double(satWeight)) + 360)
+                                    .truncatingRemainder(dividingBy: 360) / 360.0)
+                        let sScaled = Double(s) * (1 + dS * Double(satWeight))
+                        s = Float(max(0, min(1, sScaled)))
+                        let vScaled = Double(v) * (1 + dL * Double(satWeight))
+                        v = Float(max(0, min(1, vScaled)))
+                    }
+
+                    let (rOut, gOut, bOut) = hsvToRGB(h: h, s: s, v: v)
+                    let i = (b * dim * dim + g * dim + r) * 4
+                    bytes[i + 0] = rOut
+                    bytes[i + 1] = gOut
+                    bytes[i + 2] = bOut
+                    bytes[i + 3] = 1
+                }
+            }
+        }
+
+        return bytes.withUnsafeBufferPointer { Data(buffer: $0) }
+    }
+
+    private static func rgbToHSV(r: Float, g: Float, b: Float) -> (h: Float, s: Float, v: Float) {
+        let maxC = max(r, max(g, b))
+        let minC = min(r, min(g, b))
+        let delta = maxC - minC
+        let v = maxC
+        let s = maxC > 0 ? delta / maxC : 0
+        var h: Float = 0
+        if delta > 0 {
+            if maxC == r {
+                h = ((g - b) / delta).truncatingRemainder(dividingBy: 6)
+            } else if maxC == g {
+                h = (b - r) / delta + 2
+            } else {
+                h = (r - g) / delta + 4
+            }
+            h /= 6
+            if h < 0 { h += 1 }
+        }
+        return (h, s, v)
+    }
+
+    private static func hsvToRGB(h: Float, s: Float, v: Float) -> (r: Float, g: Float, b: Float) {
+        if s <= 0 { return (v, v, v) }
+        let h6 = (h - floor(h)) * 6
+        let i = Int(floor(h6))
+        let f = h6 - Float(i)
+        let p = v * (1 - s)
+        let q = v * (1 - s * f)
+        let t = v * (1 - s * (1 - f))
+        switch i % 6 {
+        case 0: return (v, t, p)
+        case 1: return (q, v, p)
+        case 2: return (p, v, t)
+        case 3: return (p, q, v)
+        case 4: return (t, p, v)
+        default: return (v, p, q)
+        }
     }
 
     static func linearGradient(c1: ColorRGB, c2: ColorRGB, angle: Double, extent: CGRect) -> CIImage {
