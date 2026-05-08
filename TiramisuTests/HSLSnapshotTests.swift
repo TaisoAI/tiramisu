@@ -7,9 +7,10 @@ import AppKit
 /// Visual gallery for the per-color HSL pipeline. Each test pushes a single
 /// HSL slider and snapshots the rendered output so that drift in the LUT
 /// generator or the CIColorCubeWithColorSpace bridge is immediately visible
-/// in the diff. The cafe fixture has umbrella-reds, sky-blues, and people
-/// in patio chairs (skin tones in the orange/yellow band) — covers most of
-/// the band edge cases in one image.
+/// in the diff. Uses Kodak's `kodim23` (two macaws) — the canonical photo-
+/// industry test image for color manipulation: every hue band is represented
+/// with saturated content (red plumage, blue/yellow plumage, green foliage),
+/// public domain, 768×512.
 @MainActor
 final class HSLSnapshotTests: XCTestCase {
 
@@ -54,13 +55,17 @@ final class HSLSnapshotTests: XCTestCase {
 
     private func renderHSL(name: String, hsl: HSLAdjustments) throws {
         let store = DocumentStore()
-        store.canvasSize = CGSize(width: 480, height: 320)
+        // 768×512 matches the kodim23 source aspect; gives a placement that
+        // doesn't fill the canvas (the smaller-than-canvas property catches
+        // alpha-bleed bugs the way the v0.2.1 retro mandates — see
+        // RELEASING.md Step 1b).
+        store.canvasSize = CGSize(width: 960, height: 640)
         store.backgroundColor = ColorRGB(r: 0.10, g: 0.10, b: 0.12)
         store.layers = []
 
-        let cafe = try fixture(named: "cafe", ext: "jpg")
-        guard let photo = store.placeSmartImage(data: cafe, format: "jpg") else {
-            return XCTFail("placeSmartImage failed for cafe fixture")
+        let parrots = try fixture(named: "kodim23", ext: "png")
+        guard let photo = store.placeSmartImage(data: parrots, format: "png") else {
+            return XCTFail("placeSmartImage failed for kodim23 fixture")
         }
         var adj = Adjustments()
         adj.hsl = hsl
