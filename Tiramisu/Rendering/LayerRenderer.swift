@@ -414,11 +414,12 @@ enum LayerRenderer {
                     var (h, s, v) = rgbToHSV(r: rf, g: gf, b: bf)
 
                     // For an unsaturated pixel, hue is undefined and per-band
-                    // adjustments shouldn't apply. Scale the effect by saturation
-                    // so neutrals are preserved.
-                    let satWeight = s
-
-                    if satWeight > 0.0001 {
+                    // adjustments shouldn't apply. Gate by a small threshold
+                    // so true neutrals (gray, white, black) are preserved —
+                    // do NOT scale the effect magnitude by saturation, that
+                    // produced sluggish moves on photo content (Lightroom
+                    // matches: gate but don't dampen).
+                    if s > 0.02 {
                         // Find which two adjacent band centers bracket the hue.
                         let hDeg = Double(h * 360)
                         var idxA = 0
@@ -454,12 +455,13 @@ enum LayerRenderer {
                         // Luminance: slider [-1...1] scales V proportionally.
                         let dL = wA * dA.l + wB * dB.l
 
-                        // Apply weighted by saturation so neutrals don't drift.
-                        h = Float(((Double(h * 360) + dH * Double(satWeight)) + 360)
+                        // Apply effects at full strength (no satWeight scaling).
+                        // The `s > 0.02` gate above is what protects neutrals.
+                        h = Float(((Double(h * 360) + dH) + 360)
                                     .truncatingRemainder(dividingBy: 360) / 360.0)
-                        let sScaled = Double(s) * (1 + dS * Double(satWeight))
+                        let sScaled = Double(s) * (1 + dS)
                         s = Float(max(0, min(1, sScaled)))
-                        let vScaled = Double(v) * (1 + dL * Double(satWeight))
+                        let vScaled = Double(v) * (1 + dL)
                         v = Float(max(0, min(1, vScaled)))
                     }
 

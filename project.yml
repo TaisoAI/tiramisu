@@ -41,8 +41,8 @@ targets:
       properties:
         CFBundleName: Tiramisu
         CFBundleDisplayName: Tiramisu
-        CFBundleShortVersionString: "0.3.1"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "0.3.2"
+        CFBundleVersion: "9"
         LSMinimumSystemVersion: "26.0"
         LSApplicationCategoryType: public.app-category.graphics-design
         NSHumanReadableCopyright: "© 2026 Hanley Leung"

@@ -30,24 +30,35 @@ final class HSLSnapshotTests: XCTestCase {
         try renderHSL(name: "hsl-red-sat-down", hsl: h)
     }
 
-    func testBlueLumDown() throws {
-        // Sky should darken; non-blue regions should be unaffected.
-        var h = HSLAdjustments(); h.blueLum = -0.7
-        try renderHSL(name: "hsl-blue-lum-down", hsl: h)
+    func testAquaLumDown() throws {
+        // The blue/yellow macaw's plumage is actually aqua (~180°), not pure
+        // blue. Pushing aquaLum=-1 darkens it substantially — visible diff.
+        var h = HSLAdjustments(); h.aquaLum = -1.0
+        try renderHSL(name: "hsl-aqua-lum-down", hsl: h)
     }
 
     func testGreenHueShift() throws {
-        // Pushes greens toward yellow.
-        var h = HSLAdjustments(); h.greenHue = 0.6
+        // Greens rotate toward yellow at full slider — foliage becomes
+        // yellow-green / olive.
+        var h = HSLAdjustments(); h.greenHue = 1.0
         try renderHSL(name: "hsl-green-hue-shift", hsl: h)
     }
 
+    func testYellowSatDown() throws {
+        // Drives the yellow macaw's body toward gray. Strong directional move
+        // on the band where the fixture has the most concentrated content.
+        var h = HSLAdjustments(); h.yellowSat = -1.0
+        try renderHSL(name: "hsl-yellow-sat-down", hsl: h)
+    }
+
     func testCombinedTeal() throws {
-        // Composite move: cool-and-teal preset shape, all sliders engaged.
+        // Composite move: cool-and-teal — orange skin/plumage warmer, aqua
+        // plumage punchier, blues shifted. All sliders pushed hard for a
+        // full "look" rather than subtle correction.
         var h = HSLAdjustments()
-        h.orangeSat = 0.4; h.orangeLum = 0.15
-        h.blueHue = -0.3;  h.blueSat = 0.5
-        h.aquaSat = 0.6
+        h.orangeSat = 0.8;  h.orangeLum = 0.3
+        h.aquaSat = 1.0;    h.aquaLum = 0.2
+        h.blueHue = -0.6;   h.blueSat = 0.8
         try renderHSL(name: "hsl-teal-and-orange", hsl: h)
     }
 
