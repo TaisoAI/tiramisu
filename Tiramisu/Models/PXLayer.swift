@@ -13,6 +13,32 @@ struct Adjustments: Codable, Sendable, Equatable {
     var warmth: Double = 0       // -1...1
     var shadows: Double = 0      // -1...1
     var highlights: Double = 0   // -1...1
+    /// "Smart" saturation that protects already-saturated pixels and skin tones —
+    /// boosts low-saturation regions more than high-saturation ones. Lightroom-style.
+    var vibrance: Double = 0     // -1...1
+
+    enum CodingKeys: String, CodingKey {
+        case brightness, contrast, exposure, saturation, warmth, shadows, highlights, vibrance
+    }
+    init() {}
+    init(brightness: Double = 0, contrast: Double = 0, exposure: Double = 0,
+         saturation: Double = 0, warmth: Double = 0, shadows: Double = 0,
+         highlights: Double = 0, vibrance: Double = 0) {
+        self.brightness = brightness; self.contrast = contrast; self.exposure = exposure
+        self.saturation = saturation; self.warmth = warmth
+        self.shadows = shadows; self.highlights = highlights; self.vibrance = vibrance
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.brightness = try c.decodeIfPresent(Double.self, forKey: .brightness) ?? 0
+        self.contrast   = try c.decodeIfPresent(Double.self, forKey: .contrast) ?? 0
+        self.exposure   = try c.decodeIfPresent(Double.self, forKey: .exposure) ?? 0
+        self.saturation = try c.decodeIfPresent(Double.self, forKey: .saturation) ?? 0
+        self.warmth     = try c.decodeIfPresent(Double.self, forKey: .warmth) ?? 0
+        self.shadows    = try c.decodeIfPresent(Double.self, forKey: .shadows) ?? 0
+        self.highlights = try c.decodeIfPresent(Double.self, forKey: .highlights) ?? 0
+        self.vibrance   = try c.decodeIfPresent(Double.self, forKey: .vibrance) ?? 0
+    }
 }
 
 struct Filters: Codable, Sendable, Equatable {
@@ -22,6 +48,34 @@ struct Filters: Codable, Sendable, Equatable {
     var sharpen: Double = 0      // 0...2
     var pixelate: Double = 0     // 0...40
     var hueShift: Double = 0     // -180...180
+    /// Radial darkening at the canvas edges. 0 = no vignette, 1 = strong.
+    var vignette: Double = 0     // 0...1
+    /// Soft-edge falloff radius (0 = hard edge, 1 = very gradual).
+    var vignetteFalloff: Double = 0.6  // 0...1
+    /// Film-style grain — anisotropic noise with adjustable size. Distinct from
+    /// the flat `noise` field (which is per-pixel salt-and-pepper).
+    var grain: Double = 0        // 0...1
+    /// Grain particle size in pixels (1 = pixel-fine, larger = chunkier).
+    var grainSize: Double = 1.5  // 0.5...4
+
+    enum CodingKeys: String, CodingKey {
+        case blur, noise, noiseMono, sharpen, pixelate, hueShift
+        case vignette, vignetteFalloff, grain, grainSize
+    }
+    init() {}
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.blur = try c.decodeIfPresent(Double.self, forKey: .blur) ?? 0
+        self.noise = try c.decodeIfPresent(Double.self, forKey: .noise) ?? 0
+        self.noiseMono = try c.decodeIfPresent(Bool.self, forKey: .noiseMono) ?? true
+        self.sharpen = try c.decodeIfPresent(Double.self, forKey: .sharpen) ?? 0
+        self.pixelate = try c.decodeIfPresent(Double.self, forKey: .pixelate) ?? 0
+        self.hueShift = try c.decodeIfPresent(Double.self, forKey: .hueShift) ?? 0
+        self.vignette = try c.decodeIfPresent(Double.self, forKey: .vignette) ?? 0
+        self.vignetteFalloff = try c.decodeIfPresent(Double.self, forKey: .vignetteFalloff) ?? 0.6
+        self.grain = try c.decodeIfPresent(Double.self, forKey: .grain) ?? 0
+        self.grainSize = try c.decodeIfPresent(Double.self, forKey: .grainSize) ?? 1.5
+    }
 }
 
 struct Relight: Codable, Sendable, Equatable {

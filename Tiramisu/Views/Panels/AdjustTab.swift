@@ -93,6 +93,7 @@ private struct LightingPanel: View {
                     adjRow("Contrast", \.contrast, -1...1)
                     adjRow("Exposure", \.exposure, -2...2)
                     adjRow("Saturation", \.saturation, -1...1)
+                    adjRow("Vibrance", \.vibrance, -1...1)
                     adjRow("Warmth", \.warmth, -1...1)
                     adjRow("Shadows", \.shadows, -1...1)
                     adjRow("Highlights", \.highlights, -1...1)
@@ -288,6 +289,22 @@ private struct FiltersPanel: View {
             }
             InspectorRow("Hue shift") {
                 InspectorSlider($layer.filters.hueShift, in: -180...180, format: .degrees) { store.invalidate() }
+            }
+            InspectorRow("Vignette") {
+                InspectorSlider($layer.filters.vignette, in: 0...1, format: .percent) { store.invalidate() }
+            }
+            if layer.filters.vignette > 0.001 {
+                InspectorRow("V. falloff") {
+                    InspectorSlider($layer.filters.vignetteFalloff, in: 0...1, format: .percent) { store.invalidate() }
+                }
+            }
+            InspectorRow("Grain") {
+                InspectorSlider($layer.filters.grain, in: 0...1, format: .percent) { store.invalidate() }
+            }
+            if layer.filters.grain > 0.001 {
+                InspectorRow("Grain size") {
+                    InspectorSlider($layer.filters.grainSize, in: 0.5...4, format: .decimal(1)) { store.invalidate() }
+                }
             }
         }
     }

@@ -109,8 +109,10 @@ enum LayerRenderer {
         // Filters / adjustments / relight / skin / styles
         let A = L.adjust; h.combine(A.brightness); h.combine(A.contrast); h.combine(A.exposure)
         h.combine(A.saturation); h.combine(A.warmth); h.combine(A.shadows); h.combine(A.highlights)
+        h.combine(A.vibrance)
         let F = L.filters; h.combine(F.blur); h.combine(F.noise); h.combine(F.noiseMono)
         h.combine(F.sharpen); h.combine(F.pixelate); h.combine(F.hueShift)
+        h.combine(F.vignette); h.combine(F.vignetteFalloff); h.combine(F.grain); h.combine(F.grainSize)
         let R = L.relight; h.combine(R.enabled); h.combine(R.position.x); h.combine(R.position.y)
         h.combine(R.intensity); h.combine(R.radius); h.combine(R.ambient)
         h.combine(R.color.r); h.combine(R.color.g); h.combine(R.color.b)
@@ -200,6 +202,24 @@ enum LayerRenderer {
             if let out = f.outputImage { img = out.cropped(to: extent) }
         }
 
+        // Vignette — radial darkening at the edges. CIVignetteEffect centers
+        // on the canvas; intensity scales 0...1, falloff scales 0...1.
+        if layer.filters.vignette > 0.001 {
+            let f = CIFilter.vignetteEffect()
+            f.inputImage = img
+            f.center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
+            f.radius = Float(min(canvasSize.width, canvasSize.height) * 0.5 * layer.filters.vignetteFalloff + min(canvasSize.width, canvasSize.height) * 0.25)
+            f.intensity = Float(layer.filters.vignette)
+            if let out = f.outputImage { img = out.cropped(to: extent) }
+        }
+
+        // Grain — anisotropic noise overlay distinct from the flat `noise`
+        // field. Scales the random source to grainSize before compositing,
+        // so larger values produce chunkier "film grain" particles.
+        if layer.filters.grain > 0.001 {
+            img = addGrain(img, amount: layer.filters.grain, size: layer.filters.grainSize, extent: extent)
+        }
+
         // 4. Skin retouch
         if layer.skin.enabled { img = SkinProcessor.apply(img, settings: layer.skin, extent: extent) }
 
@@ -286,6 +306,15 @@ enum LayerRenderer {
             f.highlightAmount = Float(1 - max(0, min(1, -adj.highlights * 0.5 + 1)))
             out = f.outputImage ?? out
         }
+        // Vibrance — Lightroom-style smart saturation. Boosts low-saturation
+        // pixels more than already-saturated ones; protects skin tones.
+        // CIVibrance accepts -1...1 directly.
+        if adj.vibrance != 0 {
+            let f = CIFilter.vibrance()
+            f.inputImage = out
+            f.amount = Float(adj.vibrance)
+            out = f.outputImage ?? out
+        }
         return out
     }
 
@@ -299,6 +328,46 @@ enum LayerRenderer {
         f.color0 = CIColor(red: c1.r, green: c1.g, blue: c1.b, alpha: c1.a)
         f.color1 = CIColor(red: c2.r, green: c2.g, blue: c2.b, alpha: c2.a)
         return (f.outputImage ?? CIImage.empty()).cropped(to: extent)
+    }
+
+    /// Film-style grain overlay — generates a random luma field, scales it to
+    /// `size` (so larger values produce chunkier particles), monochromes it,
+    /// then composites with multiply blend so the grain *modulates* the image
+    /// instead of additively overlaying. Distinct from `addNoise`, which
+    /// composites RGBA noise directly.
+    static func addGrain(_ img: CIImage, amount: Double, size: Double, extent: CGRect) -> CIImage {
+        let random = CIFilter.randomGenerator()
+        guard var grain = random.outputImage else { return img }
+        // Scale the noise field so each grain particle is `size` pixels wide.
+        if size > 1.01 {
+            grain = grain.transformed(by: CGAffineTransform(scaleX: size, y: size))
+        }
+        // Desaturate to monochrome luma — film grain is ~achromatic.
+        let mono = CIFilter.colorMatrix()
+        mono.inputImage = grain
+        mono.rVector = CIVector(x: 0.33, y: 0.33, z: 0.33, w: 0)
+        mono.gVector = CIVector(x: 0.33, y: 0.33, z: 0.33, w: 0)
+        mono.bVector = CIVector(x: 0.33, y: 0.33, z: 0.33, w: 0)
+        mono.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        var lumaGrain = mono.outputImage ?? grain
+        // Re-center around mid-grey so multiply doesn't only darken.
+        let bias = CIFilter.colorMatrix()
+        bias.inputImage = lumaGrain
+        bias.biasVector = CIVector(x: 0.0, y: 0.0, z: 0.0, w: 0)
+        // Mix grain ↔ flat 50% grey by `amount` so 0 = no effect, 1 = full grain.
+        let opacityMatrix = CIFilter.colorMatrix()
+        opacityMatrix.inputImage = lumaGrain
+        let mid = 1 - amount
+        opacityMatrix.rVector = CIVector(x: amount, y: 0, z: 0, w: 0)
+        opacityMatrix.gVector = CIVector(x: 0, y: amount, z: 0, w: 0)
+        opacityMatrix.bVector = CIVector(x: 0, y: 0, z: amount, w: 0)
+        opacityMatrix.biasVector = CIVector(x: mid * 0.5, y: mid * 0.5, z: mid * 0.5, w: 1)
+        lumaGrain = opacityMatrix.outputImage?.cropped(to: extent) ?? lumaGrain.cropped(to: extent)
+        // Multiply blend so highlights stay bright and shadows pick up grain.
+        let blend = CIFilter.multiplyBlendMode()
+        blend.inputImage = lumaGrain
+        blend.backgroundImage = img
+        return (blend.outputImage ?? img).cropped(to: extent)
     }
 
     static func addNoise(_ img: CIImage, amount: Double, mono: Bool, extent: CGRect) -> CIImage {

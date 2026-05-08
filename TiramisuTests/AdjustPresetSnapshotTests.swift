@@ -28,6 +28,18 @@ final class AdjustPresetSnapshotTests: XCTestCase {
         try renderAdjust(name: "auto-enhance", adjustments: AdjustPreset.auto)
     }
 
+    func testVibrancePositive() throws {
+        // Vibrance protects already-saturated pixels — boosts low-saturation
+        // areas more. The diff vs. flat saturation is in the muted regions.
+        try renderAdjust(name: "vibrance-positive",
+                         adjustments: Adjustments(vibrance: 0.7))
+    }
+
+    func testVibranceNegative() throws {
+        try renderAdjust(name: "vibrance-negative",
+                         adjustments: Adjustments(vibrance: -0.7))
+    }
+
     // MARK: - Helpers
 
     private func renderPreset(id: String) throws {

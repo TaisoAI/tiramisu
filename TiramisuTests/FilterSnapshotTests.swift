@@ -41,6 +41,34 @@ final class FilterSnapshotTests: XCTestCase {
         try renderFilter(name: "hue-shift-cool") { f in f.hueShift = -90 }
     }
 
+    func testVignetteSubtle() throws {
+        try renderFilter(name: "vignette-subtle") { f in
+            f.vignette = 0.6
+            f.vignetteFalloff = 0.6
+        }
+    }
+
+    func testVignetteHard() throws {
+        try renderFilter(name: "vignette-hard") { f in
+            f.vignette = 1.0
+            f.vignetteFalloff = 0.2
+        }
+    }
+
+    func testGrainFine() throws {
+        try renderFilter(name: "grain-fine") { f in
+            f.grain = 0.5
+            f.grainSize = 1.0
+        }
+    }
+
+    func testGrainCoarse() throws {
+        try renderFilter(name: "grain-coarse") { f in
+            f.grain = 0.7
+            f.grainSize = 3.0
+        }
+    }
+
     // MARK: - Helpers
 
     private func renderFilter(name: String, configure: (inout Filters) -> Void) throws {
