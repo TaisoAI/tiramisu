@@ -5,10 +5,18 @@ import UniformTypeIdentifiers
 struct CanvasView: View {
     @Environment(DocumentStore.self) private var store
 
+    /// Internal margin between the canvas image and the surrounding chrome
+    /// (toolbar / status bar / sidebar / inspector). Lives inside CanvasView
+    /// so the checkerboard background fills the whole canvas-area instead of
+    /// leaving blank strips of parent color around the edges.
+    private let canvasMargin: CGFloat = 24
+
     var body: some View {
         GeometryReader { proxy in
-            let fit = min(proxy.size.width / store.canvasSize.width,
-                          proxy.size.height / store.canvasSize.height)
+            let fitW = max(1, proxy.size.width  - canvasMargin * 2)
+            let fitH = max(1, proxy.size.height - canvasMargin * 2)
+            let fit = min(fitW / store.canvasSize.width,
+                          fitH / store.canvasSize.height)
             let scale = max(0.05, min(8, fit * store.viewportZoom))
             let dw = store.canvasSize.width * scale
             let dh = store.canvasSize.height * scale

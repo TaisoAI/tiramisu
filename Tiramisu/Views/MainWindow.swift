@@ -17,7 +17,6 @@ struct MainWindow: View {
                 ZStack {
                     Color(nsColor: .underPageBackgroundColor).ignoresSafeArea()
                     CanvasView()
-                        .padding(24)
                 }
                 .clipped()  // keep transform-handle overflow from bleeding into toolbar/status bar
                 Divider()
