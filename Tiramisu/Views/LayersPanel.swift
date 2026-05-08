@@ -214,11 +214,18 @@ private struct LayerThumbnail: View {
                 .font(.system(size: 13, weight: .heavy, design: .default))
                 .foregroundStyle(layer.text.color.swiftUIColor)
         case .raster:
-            // Raster/smart-object preview is non-trivial (would need a thumbnail
-            // render). For now, show a generic image glyph. Defer real previews.
-            Image(systemName: layer.smart != nil ? "photo" : "paintbrush")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+            if let cg = LayerThumbnailCache.image(for: layer) {
+                Image(decorative: cg, scale: 1)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .clipped()
+            } else {
+                // No source loaded yet (e.g. smart object whose file isn't
+                // accessible). Fall back to a glyph rather than empty space.
+                Image(systemName: layer.smart != nil ? "photo" : "paintbrush")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -244,5 +251,55 @@ private struct LayerThumbnail: View {
                 )
             }
         }
+    }
+}
+
+// MARK: - Thumbnail cache
+
+/// Memoizes the source CGImage used for raster/smart-object layer previews
+/// so the layers panel doesn't re-decode the source bytes on every SwiftUI
+/// redraw. Keyed by layer ID; invalidated when the layer's content
+/// fingerprint changes (raster pointer identity, or smart bytes count).
+@MainActor
+private enum LayerThumbnailCache {
+    private static var entries: [UUID: Entry] = [:]
+
+    private struct Entry {
+        let fingerprint: Int
+        let image: CGImage
+    }
+
+    static func image(for layer: PXLayer) -> CGImage? {
+        let fp = fingerprint(for: layer)
+        if let entry = entries[layer.id], entry.fingerprint == fp {
+            return entry.image
+        }
+        guard let cg = resolve(layer: layer) else {
+            entries.removeValue(forKey: layer.id)
+            return nil
+        }
+        entries[layer.id] = Entry(fingerprint: fp, image: cg)
+        return cg
+    }
+
+    private static func resolve(layer: PXLayer) -> CGImage? {
+        if let smart = layer.smart {
+            return SmartObjectEngine.loadSource(smart)
+        }
+        return layer.raster
+    }
+
+    private static func fingerprint(for layer: PXLayer) -> Int {
+        var h = Hasher()
+        if let smart = layer.smart {
+            h.combine(smart.sourceBytes?.count ?? 0)
+            h.combine(smart.sourcePath ?? "")
+            h.combine(smart.sourceFormat ?? "")
+        } else if let cg = layer.raster {
+            h.combine(ObjectIdentifier(cg))
+        } else {
+            h.combine(0)
+        }
+        return h.finalize()
     }
 }
