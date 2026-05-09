@@ -26,6 +26,18 @@ struct ToolOptionsPanel: View {
             case .marquee:
                 Text("Drag to draw a selection. Use AI → Generative Fill (⌘⇧G) to regenerate inside the selection.")
                     .font(.caption).foregroundStyle(.secondary)
+            case .lasso:
+                Text("Drag to trace a free-form selection. The path closes on release; selection-aware tools clip to it.")
+                    .font(.caption).foregroundStyle(.secondary)
+            case .polygonalLasso:
+                Text("Click to drop polygon vertices. Double-click or click the start point to close.")
+                    .font(.caption).foregroundStyle(.secondary)
+            case .magicWand:
+                Text("Click a pixel — similar-colored neighbors become the selection. Tolerance + Contiguous in the options bar.")
+                    .font(.caption).foregroundStyle(.secondary)
+            case .smartSelect:
+                Text("Click an object — Vision segments it as a selection. Best on photos with clear subjects.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

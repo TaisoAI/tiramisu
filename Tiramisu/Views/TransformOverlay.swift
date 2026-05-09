@@ -9,6 +9,22 @@ struct TransformOverlay: View {
     @State private var dragStart: DragStart?
     @State private var missStart: CGPoint?
     @State private var tatStart: TATStart?
+    @State private var paintStroke: PaintStroke?
+    /// Lasso polyline in doc top-down coords. Recorded as the user drags;
+    /// closed and converted to a CGPath on mouse-up.
+    @State private var lassoPoints: [CGPoint] = []
+    /// Polygonal lasso vertices in doc top-down coords. Each click adds a
+    /// vertex; double-click (or click near the start) closes the polygon.
+    /// Distinct from `lassoPoints` because the interaction model is
+    /// click-by-click instead of drag.
+    @State private var polyLassoVertices: [CGPoint] = []
+    @State private var lastPolyClickAt: Date?
+    @State private var lastPolyClickDoc: CGPoint?
+    /// Live pointer position in this overlay's view coords. Tracked via the
+    /// AppKit `MouseTracker` background so the SwiftUI Canvas can draw a
+    /// brush-radius preview circle at the cursor — far more reliable than
+    /// fighting NSCursor's image-size quirks at large brush sizes.
+    @State private var hoverPoint: CGPoint?
 
     private struct DragStart {
         enum Kind { case move, cornerTL, cornerTR, cornerBL, cornerBR, rotate }
@@ -35,18 +51,57 @@ struct TransformOverlay: View {
 
     var body: some View {
         Canvas { ctx, size in
-            // Marquee selection — render the active selection as marching ants.
-            if let sel = store.selectionRect {
-                let r = CGRect(x: sel.minX * docToView + imageOrigin.x,
-                               y: sel.minY * docToView + imageOrigin.y,
-                               width: sel.width * docToView,
-                               height: sel.height * docToView)
-                ctx.stroke(Path(r),
-                           with: .color(.white),
+            // Active selection — render as marching ants. Works for both
+            // rectangular (marquee) and free-form (lasso) selections by
+            // walking the stored CGPath and transforming to view coords.
+            if let sel = store.selectionPath {
+                let viewPath = pathToView(sel)
+                ctx.stroke(viewPath, with: .color(.white),
                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                ctx.stroke(Path(r),
-                           with: .color(.black),
+                ctx.stroke(viewPath, with: .color(.black),
                            style: StrokeStyle(lineWidth: 1.5, dash: [5, 4], dashPhase: 4))
+            }
+            // In-flight lasso: trace the polyline as the user drags.
+            if store.tool == .lasso, lassoPoints.count >= 2 {
+                var p = Path()
+                let first = lassoPoints[0]
+                p.move(to: CGPoint(x: first.x * docToView + imageOrigin.x,
+                                   y: first.y * docToView + imageOrigin.y))
+                for pt in lassoPoints.dropFirst() {
+                    p.addLine(to: CGPoint(x: pt.x * docToView + imageOrigin.x,
+                                          y: pt.y * docToView + imageOrigin.y))
+                }
+                ctx.stroke(p, with: .color(.white),
+                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                ctx.stroke(p, with: .color(.black),
+                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4], dashPhase: 4))
+            }
+            // In-flight polygonal lasso: committed vertices as solid edges,
+            // plus a "rubber band" line from the last vertex to the cursor.
+            if store.tool == .polygonalLasso, !polyLassoVertices.isEmpty {
+                var p = Path()
+                let first = polyLassoVertices[0]
+                p.move(to: CGPoint(x: first.x * docToView + imageOrigin.x,
+                                   y: first.y * docToView + imageOrigin.y))
+                for v in polyLassoVertices.dropFirst() {
+                    p.addLine(to: CGPoint(x: v.x * docToView + imageOrigin.x,
+                                          y: v.y * docToView + imageOrigin.y))
+                }
+                if let h = hoverPoint {
+                    p.addLine(to: h)
+                }
+                ctx.stroke(p, with: .color(.white),
+                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                ctx.stroke(p, with: .color(.black),
+                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4], dashPhase: 4))
+                // Vertex dots.
+                for v in polyLassoVertices {
+                    let r = CGRect(x: v.x * docToView + imageOrigin.x - 2.5,
+                                   y: v.y * docToView + imageOrigin.y - 2.5,
+                                   width: 5, height: 5)
+                    ctx.fill(Path(ellipseIn: r), with: .color(.white))
+                    ctx.stroke(Path(ellipseIn: r), with: .color(.black), lineWidth: 0.75)
+                }
             }
 
             guard let layer = store.activeLayer else { return }
@@ -57,6 +112,21 @@ struct TransformOverlay: View {
                 } else if layer.kind == .text, let b = textBBoxDoc(layer: layer) {
                     drawBBox(ctx, b)
                 }
+            }
+
+            // Brush preview ring — drawn inside the SwiftUI Canvas so the
+            // size is always pixel-exact relative to the rendered stamp,
+            // unlike NSCursor which the OS scales/clips on its own.
+            if (store.tool == .pencil || store.tool == .eraser),
+               let p = hoverPoint, store.hslTATChannel == nil {
+                let d = max(2, CGFloat(store.brush.size) * docToView)
+                let rect = CGRect(x: p.x - d / 2, y: p.y - d / 2, width: d, height: d)
+                ctx.stroke(Path(ellipseIn: rect),
+                           with: .color(.white.opacity(0.85)),
+                           style: StrokeStyle(lineWidth: 1.25))
+                ctx.stroke(Path(ellipseIn: rect),
+                           with: .color(.black.opacity(0.85)),
+                           style: StrokeStyle(lineWidth: 0.75))
             }
 
             if store.tool == .relight && layer.relight.enabled {
@@ -84,10 +154,28 @@ struct TransformOverlay: View {
         // Without the cursor change users can't tell they're in a different
         // interaction mode; without Esc the only way out is the scope
         // button on the panel which may be off-screen during a drag session.
-        .background(TATCursorOverlay(active: store.hslTATChannel != nil))
+        .background(ToolCursorOverlay(
+            tool: store.tool,
+            tatActive: store.hslTATChannel != nil
+        ))
+        .background(MouseTracker { p in hoverPoint = p })
         .background(TATKeyHandler(active: store.hslTATChannel != nil) {
             store.hslTATChannel = nil
         })
+        // Esc cancels an in-flight polygonal lasso without committing.
+        .background(TATKeyHandler(active: !polyLassoVertices.isEmpty) {
+            polyLassoVertices = []
+            lastPolyClickAt = nil
+            lastPolyClickDoc = nil
+        })
+    }
+
+    /// Doc-coord (top-down) CGPath → SwiftUI view-coord Path for drawing.
+    private func pathToView(_ doc: CGPath) -> Path {
+        var t = CGAffineTransform(scaleX: docToView, y: docToView)
+            .concatenating(CGAffineTransform(translationX: imageOrigin.x, y: imageOrigin.y))
+        guard let mapped = doc.copy(using: &t) else { return Path(doc) }
+        return Path(mapped)
     }
 
     private func bboxDoc(smart: SmartSource) -> CGRect {
@@ -151,6 +239,11 @@ struct TransformOverlay: View {
                     return
                 }
 
+                if store.tool == .pencil || store.tool == .eraser {
+                    handlePaintDrag(docP: docP, eraser: store.tool == .eraser)
+                    return
+                }
+
                 if store.tool == .marquee {
                     // Drag draws a selection rect. Start point = where missStart was set.
                     if missStart == nil { missStart = value.location }
@@ -160,7 +253,26 @@ struct TransformOverlay: View {
                     )
                     let x1 = min(startDoc.x, docP.x), y1 = min(startDoc.y, docP.y)
                     let x2 = max(startDoc.x, docP.x), y2 = max(startDoc.y, docP.y)
-                    store.selectionRect = CGRect(x: x1, y: y1, width: x2 - x1, height: y2 - y1)
+                    store.setSelection(rect: CGRect(x: x1, y: y1, width: x2 - x1, height: y2 - y1))
+                    return
+                }
+
+                if store.tool == .polygonalLasso {
+                    // Polygonal lasso is click-by-click; the rubber band
+                    // is driven by hoverPoint, not by drag events. Just
+                    // consume drag-changed updates.
+                    return
+                }
+
+                if store.tool == .lasso {
+                    if lassoPoints.isEmpty { lassoPoints.append(docP) }
+                    // Append a new sample only if it's moved meaningfully —
+                    // keeps the polyline cheap on long drags without losing
+                    // shape detail.
+                    if let last = lassoPoints.last,
+                       hypot(docP.x - last.x, docP.y - last.y) > 1.5 / docToView {
+                        lassoPoints.append(docP)
+                    }
                     return
                 }
 
@@ -298,12 +410,84 @@ struct TransformOverlay: View {
                 store.invalidate()
             }
             .onEnded { value in
+                if store.tool == .pencil || store.tool == .eraser {
+                    paintStroke?.endStroke()
+                    paintStroke?.commitToLayer()
+                    paintStroke = nil
+                    store.endCoalescing()
+                    store.invalidate()
+                    return
+                }
                 if store.tool == .marquee {
                     // Tap with no drag clears the selection.
                     if let start = missStart, hypot(value.location.x - start.x, value.location.y - start.y) < 4 {
-                        store.selectionRect = nil
+                        store.clearSelection()
                     }
                     missStart = nil
+                    return
+                }
+                if store.tool == .lasso {
+                    // Need at least 3 distinct points to define a region.
+                    // Anything shorter = treat as a deselect tap.
+                    if lassoPoints.count < 3 {
+                        store.clearSelection()
+                    } else {
+                        let p = CGMutablePath()
+                        p.move(to: lassoPoints[0])
+                        for pt in lassoPoints.dropFirst() { p.addLine(to: pt) }
+                        p.closeSubpath()
+                        store.setSelection(path: p)
+                    }
+                    lassoPoints = []
+                    return
+                }
+
+                if store.tool == .magicWand {
+                    let docP = CGPoint(x: (value.location.x - imageOrigin.x) / docToView,
+                                       y: (value.location.y - imageOrigin.y) / docToView)
+                    handleMagicWand(at: docP)
+                    return
+                }
+
+                if store.tool == .smartSelect {
+                    let docP = CGPoint(x: (value.location.x - imageOrigin.x) / docToView,
+                                       y: (value.location.y - imageOrigin.y) / docToView)
+                    handleSmartSelect(at: docP)
+                    return
+                }
+
+                if store.tool == .polygonalLasso {
+                    let docP = CGPoint(x: (value.location.x - imageOrigin.x) / docToView,
+                                       y: (value.location.y - imageOrigin.y) / docToView)
+                    let now = Date()
+                    let recentClick = (lastPolyClickAt.map { now.timeIntervalSince($0) < 0.4 } ?? false)
+                    let nearLastClick = (lastPolyClickDoc.map {
+                        hypot(docP.x - $0.x, docP.y - $0.y) < 8 / docToView
+                    } ?? false)
+                    let isDoubleClick = recentClick && nearLastClick
+                    let nearStart = (polyLassoVertices.first.map {
+                        hypot(docP.x - $0.x, docP.y - $0.y) < 8 / docToView
+                    } ?? false)
+                    let isClickOnStart = polyLassoVertices.count >= 3 && nearStart
+
+                    if isDoubleClick || isClickOnStart {
+                        if polyLassoVertices.count >= 3 {
+                            let p = CGMutablePath()
+                            p.move(to: polyLassoVertices[0])
+                            for v in polyLassoVertices.dropFirst() { p.addLine(to: v) }
+                            p.closeSubpath()
+                            store.setSelection(path: p)
+                        } else {
+                            store.clearSelection()
+                        }
+                        polyLassoVertices = []
+                        lastPolyClickAt = nil
+                        lastPolyClickDoc = nil
+                    } else {
+                        polyLassoVertices.append(docP)
+                        lastPolyClickAt = now
+                        lastPolyClickDoc = docP
+                    }
                     return
                 }
                 if dragStart == nil, let start = missStart {
@@ -363,6 +547,94 @@ struct TransformOverlay: View {
     }
 
     // MARK: - HSL Targeted Adjustment Tool
+
+    /// Pencil / Eraser drag handler. On the first call of a stroke we
+    /// auto-create a transparent paint layer if the active layer can't be
+    /// painted on, take an undo checkpoint, and spin up a `PaintStroke`.
+    /// Subsequent calls extend the stroke and live-commit to the layer.
+    private func handlePaintDrag(docP: CGPoint, eraser: Bool) {
+        if paintStroke == nil {
+            let target = paintTargetLayer(eraser: eraser)
+            guard let L = target else { return }
+            store.checkpoint(eraser ? "Erase" : "Paint")
+            paintStroke = PaintStroke(
+                layer: L,
+                canvasSize: store.canvasSize,
+                isEraser: eraser,
+                color: store.foreground,
+                settings: store.brush,
+                selectionPath: store.selectionPath
+            )
+        }
+        guard let stroke = paintStroke else { return }
+        stroke.addPoint(docP)
+        stroke.commitToLayer()
+        store.invalidate()
+    }
+
+    /// Magic Wand handler — flood-fill the composite from the click point,
+    /// build a CGPath from the resulting mask, set as the document's
+    /// selection. Reads `magicWandTolerance` and `magicWandContiguous`
+    /// from the store.
+    private func handleMagicWand(at docP: CGPoint) {
+        guard let cg = LayerRenderer.composite(store: store) else { return }
+        guard let mask = SelectionTools.floodFill(
+            in: cg,
+            seed: docP,
+            tolerance: store.magicWandTolerance,
+            contiguous: store.magicWandContiguous
+        ) else {
+            tlog("magicWand: floodFill returned nil")
+            return
+        }
+        guard let path = SelectionTools.maskToPath(mask, canvasSize: store.canvasSize) else {
+            tlog("magicWand: maskToPath returned nil")
+            return
+        }
+        store.checkpoint("Magic Wand")
+        store.setSelection(path: path)
+        store.invalidate()
+    }
+
+    /// Smart Select handler — runs Vision foreground-instance segmentation
+    /// on the composite, picks the instance under the cursor, converts its
+    /// mask to a path. The first selection on a busy photo can take
+    /// 100-300ms; subsequent clicks reuse the same Vision request only if
+    /// the source hasn't changed (we don't cache yet — fresh request each
+    /// click).
+    private func handleSmartSelect(at docP: CGPoint) {
+        guard let cg = LayerRenderer.composite(store: store) else { return }
+        guard let mask = SelectionTools.smartSelectMask(
+            in: cg,
+            click: docP,
+            canvasSize: store.canvasSize
+        ) else {
+            tlog("smartSelect: no mask produced")
+            return
+        }
+        guard let path = SelectionTools.maskToPath(mask, canvasSize: store.canvasSize) else {
+            tlog("smartSelect: maskToPath returned nil")
+            return
+        }
+        store.checkpoint("Smart Select")
+        store.setSelection(path: path)
+        store.invalidate()
+    }
+
+    /// Returns a raster layer suitable for painting/erasing on. If the active
+    /// layer is already a flat raster (no smart source, no mask), returns it.
+    /// Otherwise, for the pencil, inserts a new transparent paint layer above
+    /// the active layer and makes it active. Eraser doesn't auto-create — you
+    /// can't erase pixels that aren't there.
+    private func paintTargetLayer(eraser: Bool) -> PXLayer? {
+        if let A = store.activeLayer, A.kind == .raster, A.smart == nil {
+            return A
+        }
+        if eraser { return nil }
+        let new = PXLayer(name: "Paint", kind: .raster)
+        store.addLayer(new)
+        return new
+    }
 
     /// Hue centers in degrees, in the same fixed band order used by
     /// `HSLAdjustments.asDeltaTable` and the renderer's LUT generator.
@@ -515,40 +787,43 @@ struct TransformOverlay: View {
     }
 }
 
-// MARK: - TAT cursor + key bindings
+// MARK: - Tool cursor + key bindings
 
-/// Backs an NSTrackingArea on the canvas overlay so the cursor switches to
-/// crosshair while HSL TAT mode is active and back to default when not.
-private struct TATCursorOverlay: NSViewRepresentable {
-    let active: Bool
+/// Backs an NSTrackingArea on the canvas overlay so the system cursor
+/// reflects the active tool — crosshair for selection / paint, I-beam for
+/// text, eyedropper for color sampling, etc. The HSL TAT mode wins over
+/// any tool-based cursor.
+private struct ToolCursorOverlay: NSViewRepresentable {
+    let tool: Tool
+    let tatActive: Bool
 
     func makeNSView(context: Context) -> CursorView {
         CursorView()
     }
 
     func updateNSView(_ nsView: CursorView, context: Context) {
-        nsView.active = active
+        nsView.tool = tool
+        nsView.tatActive = tatActive
         nsView.window?.invalidateCursorRects(for: nsView)
     }
 
-    /// Custom cursor rendered from the same SF Symbol as the panel scope
-    /// button so the in-canvas cursor visually matches the button. Follows
-    /// macOS cursor convention: black glyph (the body), white halo behind
-    /// it for contrast against any photo content. Built once, cached.
-    private static let scopeCursor: NSCursor = {
-        let symbolName = "scope"
-        // White halo — slightly larger, heavy weight, drawn first.
+    /// HSL TAT scope cursor — black glyph + white halo for contrast against
+    /// any photo content. Built once, cached.
+    fileprivate static let scopeCursor: NSCursor = makeSymbolCursor(name: "scope", hotSpot: NSPoint(x: 14, y: 14))
+    fileprivate static let eyedropperCursor: NSCursor = makeSymbolCursor(name: "eyedropper", hotSpot: NSPoint(x: 6, y: 22))
+
+    /// Render a custom cursor from an SF Symbol with a white halo for
+    /// contrast on dark images. Used for HSL TAT scope + Eyedropper —
+    /// macOS doesn't ship system cursors for either.
+    private static func makeSymbolCursor(name: String, hotSpot: NSPoint) -> NSCursor {
         let haloConfig = NSImage.SymbolConfiguration(pointSize: 22, weight: .heavy)
             .applying(NSImage.SymbolConfiguration(paletteColors: [NSColor.white]))
-        let halo = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+        let halo = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(haloConfig)
-        // Black core glyph — drawn on top.
         let coreConfig = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
             .applying(NSImage.SymbolConfiguration(paletteColors: [NSColor.black]))
-        let core = NSImage(systemSymbolName: symbolName,
-                           accessibilityDescription: "Targeted adjustment")?
+        let core = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(coreConfig)
-
         let canvas = NSSize(width: 28, height: 28)
         let bitmap = NSImage(size: canvas, flipped: false) { _ in
             if let halo {
@@ -565,14 +840,54 @@ private struct TATCursorOverlay: NSViewRepresentable {
             }
             return true
         }
-        return NSCursor(image: bitmap, hotSpot: NSPoint(x: 14, y: 14))
-    }()
+        return NSCursor(image: bitmap, hotSpot: hotSpot)
+    }
+
+    /// Resolve the right NSCursor for a given tool. nil = let the system
+    /// pick (default arrow). Pencil/eraser use a plain crosshair as the
+    /// system cursor — the brush-radius preview circle is drawn in the
+    /// SwiftUI Canvas above, since NSCursor image-scaling can't be made
+    /// pixel-exact across the full size range.
+    fileprivate static func cursor(for tool: Tool) -> NSCursor? {
+        switch tool {
+        case .move:                                       return nil
+        case .marquee, .lasso, .polygonalLasso,
+             .magicWand, .smartSelect,
+             .relight, .pen, .pencil, .eraser:            return .crosshair
+        case .text:                                       return .iBeam
+        case .eyedropper:                                 return eyedropperCursor
+        }
+    }
 
     final class CursorView: NSView {
-        var active: Bool = false {
+        var tool: Tool = .move {
             didSet {
-                window?.invalidateCursorRects(for: self)
-                needsDisplay = true
+                if tool != oldValue {
+                    window?.invalidateCursorRects(for: self)
+                    needsDisplay = true
+                    pushIfHovered()
+                }
+            }
+        }
+        var tatActive: Bool = false {
+            didSet {
+                if tatActive != oldValue {
+                    window?.invalidateCursorRects(for: self)
+                    needsDisplay = true
+                    pushIfHovered()
+                }
+            }
+        }
+
+        /// Fire `NSCursor.set()` synchronously if the system cursor is
+        /// currently inside this view. No-op otherwise so we don't fight
+        /// other windows' cursor management.
+        private func pushIfHovered() {
+            guard let win = window else { return }
+            let mouseInWin = win.mouseLocationOutsideOfEventStream
+            let mouseInView = convert(mouseInWin, from: nil)
+            if bounds.contains(mouseInView) {
+                resolvedCursor?.set()
             }
         }
         private var trackingArea: NSTrackingArea?
@@ -590,15 +905,104 @@ private struct TATCursorOverlay: NSViewRepresentable {
             trackingArea = area
         }
 
+        private var resolvedCursor: NSCursor? {
+            if tatActive { return ToolCursorOverlay.scopeCursor }
+            return ToolCursorOverlay.cursor(for: tool)
+        }
+
         override func cursorUpdate(with event: NSEvent) {
-            if active { TATCursorOverlay.scopeCursor.set() } else { super.cursorUpdate(with: event) }
+            if let c = resolvedCursor { c.set() } else { super.cursorUpdate(with: event) }
         }
 
         override func mouseMoved(with event: NSEvent) {
-            if active { TATCursorOverlay.scopeCursor.set() }
+            resolvedCursor?.set()
         }
 
         // Don't intercept clicks — the gesture handler above us must still get them.
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+}
+
+/// AppKit-backed mouse-position tracker. Reports the pointer's location
+/// inside the host view (in SwiftUI view coords, top-down y) on every
+/// movement, and reports `nil` when the pointer leaves. SwiftUI doesn't
+/// expose continuous in-view tracking without committing to a hover
+/// ScrollView/onContinuousHover, both of which have edge cases here. This
+/// is the simplest way to drive a brush-radius preview circle that
+/// follows the cursor in the SwiftUI Canvas.
+private struct MouseTracker: NSViewRepresentable {
+    let onMove: (CGPoint?) -> Void
+
+    func makeNSView(context: Context) -> Tracker {
+        let v = Tracker()
+        v.onMove = onMove
+        return v
+    }
+
+    func updateNSView(_ nsView: Tracker, context: Context) {
+        nsView.onMove = onMove
+    }
+
+    final class Tracker: NSView {
+        var onMove: ((CGPoint?) -> Void)?
+        private var trackingArea: NSTrackingArea?
+        private var eventMonitor: Any?
+
+        override var isFlipped: Bool { true }   // top-down y for SwiftUI parity
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let t = trackingArea { removeTrackingArea(t) }
+            let opts: NSTrackingArea.Options = [.activeInKeyWindow,
+                                                .mouseEnteredAndExited,
+                                                .mouseMoved,
+                                                .inVisibleRect]
+            let area = NSTrackingArea(rect: .zero, options: opts, owner: self, userInfo: nil)
+            addTrackingArea(area)
+            trackingArea = area
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            // Tear down the previous monitor before creating a new one — the
+            // view may move between windows over its lifetime.
+            if let m = eventMonitor { NSEvent.removeMonitor(m); eventMonitor = nil }
+            guard window != nil else { return }
+            // Local monitor catches both mouseMoved AND leftMouseDragged
+            // regardless of which view is firstResponder. Tracking-area
+            // mouseDragged callbacks don't fire on a hitTest:nil view because
+            // it never claims the mouse-down — but local monitors see every
+            // in-window event, so the brush ring keeps following the cursor
+            // during paint strokes.
+            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+                self?.publish(event)
+                return event
+            }
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            super.viewWillMove(toWindow: newWindow)
+            if newWindow == nil, let m = eventMonitor {
+                NSEvent.removeMonitor(m)
+                eventMonitor = nil
+            }
+        }
+
+        override func mouseEntered(with event: NSEvent) { publish(event) }
+        override func mouseMoved(with event: NSEvent)   { publish(event) }
+        override func mouseExited(with event: NSEvent)  { onMove?(nil) }
+
+        private func publish(_ event: NSEvent) {
+            // Only report when the cursor is actually inside our bounds.
+            // Otherwise dragging anywhere else in the window would jiggle
+            // the brush ring at coordinates outside the canvas.
+            let p = convert(event.locationInWindow, from: nil)
+            if bounds.contains(p) {
+                onMove?(p)
+            }
+        }
+
+        // Don't intercept clicks — gesture handlers above us must still get them.
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }

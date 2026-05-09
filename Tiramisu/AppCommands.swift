@@ -44,6 +44,24 @@ struct AppCommands: Commands {
             Divider()
             Button("Generative Fill Settings…") { GenerativeFillUI.presentSettings() }
         }
+        CommandMenu("Select") {
+            Button("Deselect") {
+                store.clearSelection(); store.invalidate()
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+            .disabled(store.selectionPath == nil)
+            Divider()
+            Menu("Refine Edge") {
+                Button("Expand 1 px")  { refineSelection(by: 1) }
+                Button("Expand 5 px")  { refineSelection(by: 5) }
+                Button("Expand 10 px") { refineSelection(by: 10) }
+                Divider()
+                Button("Contract 1 px")  { refineSelection(by: -1) }
+                Button("Contract 5 px")  { refineSelection(by: -5) }
+                Button("Contract 10 px") { refineSelection(by: -10) }
+            }
+            .disabled(store.selectionPath == nil)
+        }
         CommandMenu("Layer") {
             Button("New Paint Layer") { store.addLayer(PXLayer(name: "Paint", kind: .raster)) }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
@@ -56,6 +74,10 @@ struct AppCommands: Commands {
             Divider()
             Button("Duplicate Layer") { store.duplicateActive() }
                 .keyboardShortcut("d", modifiers: [.command])
+            Button("Rasterize Layer") {
+                if let id = store.activeLayerID { store.rasterizeLayer(id) }
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
             Button("Delete Layer") { store.removeActive() }
                 .keyboardShortcut(.delete, modifiers: [.command])
             Divider()
@@ -78,6 +100,23 @@ struct AppCommands: Commands {
             Button("Remove Background (AI)") { Task { await removeBackground() } }
                 .keyboardShortcut("b", modifiers: [.command, .shift])
         }
+    }
+
+    /// Refine Edge — expand or contract the active selection by `radius`
+    /// doc pixels via CIMorphology + contour re-extraction. No-op when
+    /// there's no selection (the menu items are already disabled in that
+    /// state, but defensive guard anyway).
+    private func refineSelection(by radius: Double) {
+        guard let path = store.selectionPath else { return }
+        guard let next = SelectionTools.refineEdge(path,
+                                                    radiusPx: radius,
+                                                    canvasSize: store.canvasSize) else {
+            tlog("refineEdge: returned nil for radius=\(radius)")
+            return
+        }
+        store.checkpoint(radius >= 0 ? "Expand Selection" : "Contract Selection")
+        store.setSelection(path: next)
+        store.invalidate()
     }
 
     // MARK: - Document

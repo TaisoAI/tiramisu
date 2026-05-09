@@ -11,7 +11,25 @@ struct ToolOptionsBar: View {
             case .move:
                 MoveToolOptions()
             case .marquee:
-                MarqueeToolOptions()
+                SelectionToolOptions(
+                    hint: "Drag to draw a selection · ⌘⇧G to Generative Fill inside it"
+                )
+            case .lasso:
+                SelectionToolOptions(
+                    hint: "Drag to trace a free-form selection · the path closes on release"
+                )
+            case .polygonalLasso:
+                SelectionToolOptions(
+                    hint: "Click to drop vertices · double-click or click the start point to close"
+                )
+            case .magicWand:
+                MagicWandOptions()
+            case .smartSelect:
+                SelectionToolOptions(
+                    hint: "Click an object · Vision will segment it as a selection"
+                )
+            case .pencil, .eraser:
+                BrushToolOptions(eraser: store.tool == .eraser)
             default:
                 Text(store.tool.label)
                     .font(.caption.weight(.semibold))
@@ -99,17 +117,153 @@ private struct AlignBtn: View {
     }
 }
 
-private struct MarqueeToolOptions: View {
+private struct BrushToolOptions: View {
+    @Environment(DocumentStore.self) private var store
+    let eraser: Bool
+
+    var body: some View {
+        @Bindable var store = store
+        HStack(spacing: 14) {
+            BrushSlider(label: "Size",      value: $store.brush.size,       range: 1...400, step: 1, suffix: "px")
+            BrushSlider(label: "Hardness",  value: hardnessBinding,         range: 0...1,   step: 0.01, asPercent: true)
+            BrushSlider(label: "Opacity",   value: $store.brush.opacity,    range: 0...1,   step: 0.01, asPercent: true)
+            BrushSlider(label: "Flow",      value: $store.brush.flow,       range: 0...1,   step: 0.01, asPercent: true)
+            BrushSlider(label: "Smoothing", value: $store.brush.smoothing,  range: 0...0.97, step: 0.01, asPercent: true)
+            if !eraser {
+                ColorWell()
+            }
+            Spacer()
+        }
+        .controlSize(.small)
+    }
+
+    /// Hardness is the inverse of BrushSettings.feather (0=soft … 1=hard).
+    /// Bind through this projection so the slider reads the way users expect.
+    private var hardnessBinding: Binding<Double> {
+        @Bindable var s = store
+        return Binding(
+            get: { 1.0 - s.brush.feather },
+            set: { s.brush.feather = max(0, min(1, 1.0 - $0)) }
+        )
+    }
+}
+
+private struct ColorWell: View {
     @Environment(DocumentStore.self) private var store
 
     var body: some View {
-        Text("Drag to draw a selection · ⌘⇧G to Generative Fill inside it")
+        @Bindable var store = store
+        HStack(spacing: 6) {
+            Text("Color").font(.caption).foregroundStyle(.secondary)
+            ColorPicker("", selection: Binding(
+                get: { Color(store.foreground.nsColor) },
+                set: { store.foreground = ColorRGB(NSColor($0)) }
+            ), supportsOpacity: false)
+            .labelsHidden()
+            .frame(width: 32)
+        }
+    }
+}
+
+private struct BrushSlider: View {
+    let label: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    var suffix: String = ""
+    var asPercent: Bool = false
+
+    @FocusState private var fieldFocused: Bool
+    @State private var draft: String = ""
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Slider(value: $value, in: range, step: step)
+                .frame(width: 90)
+            // Editable readout — accepts a precise typed number. Useful for
+            // small-number cases (Size = 3 px) where dragging a slider over
+            // a 1…400 range can't land on an integer reliably.
+            TextField("", text: $draft)
+                .font(.caption.monospacedDigit())
+                .multilineTextAlignment(.trailing)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 56)
+                .focused($fieldFocused)
+                .onAppear { draft = readout(value) }
+                .onChange(of: value) { _, new in
+                    if !fieldFocused { draft = readout(new) }
+                }
+                .onSubmit { commitDraft() }
+                .onChange(of: fieldFocused) { _, focused in
+                    if !focused { commitDraft() }
+                }
+            Stepper("", value: $value, in: range, step: step)
+                .labelsHidden()
+        }
+    }
+
+    private func readout(_ v: Double) -> String {
+        if asPercent { return "\(Int((v * 100).rounded()))%" }
+        if !suffix.isEmpty { return "\(Int(v.rounded()))\(suffix)" }
+        return String(format: "%.2f", v)
+    }
+
+    /// Parse the text in the field, clamp to `range`, and update the binding.
+    /// Accepts plain numbers or numbers with our display suffix ("px", "%").
+    private func commitDraft() {
+        var s = draft.trimmingCharacters(in: .whitespaces)
+        if s.hasSuffix("%") { s.removeLast() }
+        if s.hasSuffix(suffix), !suffix.isEmpty { s.removeLast(suffix.count) }
+        s = s.trimmingCharacters(in: .whitespaces)
+        guard let raw = Double(s) else {
+            draft = readout(value)   // reject + redraw the existing value
+            return
+        }
+        let parsed = asPercent ? raw / 100.0 : raw
+        let clamped = min(max(parsed, range.lowerBound), range.upperBound)
+        value = clamped
+        draft = readout(clamped)
+    }
+}
+
+private struct MagicWandOptions: View {
+    @Environment(DocumentStore.self) private var store
+    var body: some View {
+        @Bindable var store = store
+        HStack(spacing: 14) {
+            Text("Click a pixel · similar neighbors become a selection")
+                .font(.caption).foregroundStyle(.secondary)
+            Divider().frame(height: 16)
+            BrushSlider(label: "Tolerance", value: $store.magicWandTolerance,
+                        range: 0...0.5, step: 0.005, asPercent: true)
+            Toggle("Contiguous", isOn: $store.magicWandContiguous)
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
+            Spacer()
+            if store.selectionPath != nil {
+                Button("Deselect") {
+                    store.clearSelection(); store.invalidate()
+                }
+                .controlSize(.small)
+            }
+        }
+        .controlSize(.small)
+    }
+}
+
+private struct SelectionToolOptions: View {
+    @Environment(DocumentStore.self) private var store
+    let hint: String
+
+    var body: some View {
+        Text(hint)
             .font(.caption)
             .foregroundStyle(.secondary)
         Spacer()
-        if store.selectionRect != nil {
+        if store.selectionPath != nil {
             Button("Deselect") {
-                store.selectionRect = nil
+                store.clearSelection()
                 store.invalidate()
             }
             .controlSize(.small)

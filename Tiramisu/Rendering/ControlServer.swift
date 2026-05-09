@@ -289,6 +289,61 @@ final class ControlServer {
             } catch {
                 return httpResponse(status: 500, body: error.localizedDescription)
             }
+        case "rasterizeLayer":
+            let target: PXLayer? = (obj["id"] as? String).flatMap(layer) ?? store.activeLayer
+            guard let L = target else { return httpResponse(status: 404, body: "No target layer") }
+            let ok = store.rasterizeLayer(L.id)
+            return jsonResponse(["ok": ok])
+        case "paintStroke":
+            // Drive a paint or erase stroke headlessly. `points` is a list of
+            // [x, y] doc top-down coords. If the active layer isn't a flat
+            // raster and `eraser` is false, a new "Paint" layer is appended;
+            // erasers no-op when there's nothing to erase. Settings default to
+            // the current store.brush; explicit values in the payload override.
+            guard let pts = obj["points"] as? [[Double]], !pts.isEmpty else {
+                return httpResponse(status: 400, body: "Missing or empty 'points'")
+            }
+            let eraser = obj["eraser"] as? Bool ?? false
+            var brush = store.brush
+            if let v = obj["size"] as? Double    { brush.size = v }
+            if let v = obj["hardness"] as? Double { brush.feather = max(0, min(1, 1.0 - v)) }
+            if let v = obj["opacity"] as? Double { brush.opacity = v }
+            if let v = obj["flow"] as? Double    { brush.flow = v }
+            if let v = obj["smoothing"] as? Double { brush.smoothing = v }
+            let color: ColorRGB = {
+                if let hex = obj["color"] as? String, let c = parseHexColor(hex) { return c }
+                return store.foreground
+            }()
+
+            // Pick or create a paint target — same logic as the canvas drag.
+            let target: PXLayer
+            if let A = store.activeLayer, A.kind == .raster, A.smart == nil {
+                target = A
+            } else if !eraser {
+                let new = PXLayer(name: "Paint", kind: .raster)
+                store.addLayer(new)
+                target = new
+            } else {
+                return httpResponse(status: 412, body: "Eraser needs an existing flat raster layer")
+            }
+
+            guard let stroke = PaintStroke(layer: target,
+                                           canvasSize: store.canvasSize,
+                                           isEraser: eraser,
+                                           color: color,
+                                           settings: brush,
+                                           selectionPath: store.selectionPath) else {
+                return httpResponse(status: 500, body: "PaintStroke init failed")
+            }
+            store.checkpoint(eraser ? "Erase" : "Paint")
+            for p in pts where p.count >= 2 {
+                stroke.addPoint(CGPoint(x: p[0], y: p[1]))
+            }
+            stroke.endStroke()
+            stroke.commitToLayer()
+            store.endCoalescing()
+            store.invalidate()
+            return jsonResponse(["ok": true, "layerID": target.id.uuidString])
         case "moveLayer":
             if let id = obj["id"] as? String, let L = layer(id) {
                 L.offset = CGSize(width: obj["x"] as? Double ?? 0, height: obj["y"] as? Double ?? 0)
@@ -604,6 +659,19 @@ final class ControlServer {
         var data = Data(head.utf8)
         data.append(bodyData)
         return data
+    }
+
+    /// Parse "#rrggbb" or "rrggbb" into a ColorRGB. Returns nil for malformed
+    /// input. Used by paintStroke to accept colors over the wire.
+    private func parseHexColor(_ s: String) -> ColorRGB? {
+        var hex = s
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        guard hex.count == 6, let v = UInt32(hex, radix: 16) else { return nil }
+        return ColorRGB(
+            r: Double((v >> 16) & 0xff) / 255,
+            g: Double((v >> 8) & 0xff) / 255,
+            b: Double(v & 0xff) / 255
+        )
     }
 
     private func hex(_ c: ColorRGB) -> String {

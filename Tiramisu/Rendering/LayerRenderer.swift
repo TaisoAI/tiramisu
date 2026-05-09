@@ -79,6 +79,35 @@ enum LayerRenderer {
         return ciContext.createCGImage(accum, from: extent)
     }
 
+    /// Bake a single layer's full render — content + filters + adjustments +
+    /// mask + styles, with the same composite-time placement transforms applied
+    /// (text anchor + rotation) — into a canvas-resolution CGImage. The layer's
+    /// `offset`, `opacity`, and `blend` are NOT baked: those still apply when
+    /// the resulting raster layer is composited. Used by Rasterize Layer.
+    @MainActor
+    static func bakedImage(layer: PXLayer, canvasSize: CGSize) -> CGImage? {
+        let extent = CGRect(origin: .zero, size: canvasSize)
+        guard let rendered = render(layer: layer, canvasSize: canvasSize) else { return nil }
+
+        var transform = CGAffineTransform.identity
+        if layer.kind == .text {
+            let tx = (CGFloat(layer.text.anchorX) - 0.5) * canvasSize.width
+            let ty = -(CGFloat(layer.text.anchorY) - 0.5) * canvasSize.height
+            transform = CGAffineTransform(translationX: tx, y: ty)
+            if abs(layer.text.rotation) > 0.01 {
+                let ax = CGFloat(layer.text.anchorX) * canvasSize.width
+                let ay = (1 - CGFloat(layer.text.anchorY)) * canvasSize.height
+                let rad = -CGFloat(layer.text.rotation) * .pi / 180
+                transform = transform
+                    .concatenating(CGAffineTransform(translationX: -ax, y: -ay))
+                    .concatenating(CGAffineTransform(rotationAngle: rad))
+                    .concatenating(CGAffineTransform(translationX: ax, y: ay))
+            }
+        }
+        let placed = rendered.transformed(by: transform).cropped(to: extent)
+        return ciContext.createCGImage(placed, from: extent)
+    }
+
     /// Cheap hash of everything that would affect a layer's computed CI image.
     /// Excludes offset (added at composite time) and opacity/blend (applied at composite).
     private static func layerFingerprint(_ L: PXLayer, canvasSize: CGSize) -> Int {

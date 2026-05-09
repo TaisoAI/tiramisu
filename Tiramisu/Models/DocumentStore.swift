@@ -20,6 +20,13 @@ final class DocumentStore {
     var hslTATChannel: HSLTATChannel? = nil
     var foreground: ColorRGB = ColorRGB(r: 1.0, g: 0.8, b: 0.0)
     var brush = BrushSettings()
+    /// Magic-wand color-distance tolerance, 0…1 (sRGB Euclidean). Default
+    /// 0.12 ≈ 30/255 — picks similar shades but stops at clear color
+    /// boundaries. Persists per-session, not to disk.
+    var magicWandTolerance: Double = 0.12
+    /// True = flood-fill only the contiguous region. False = select all
+    /// pixels in the image with a similar color.
+    var magicWandContiguous: Bool = true
     var currentFileURL: URL?
     var isDirty: Bool = false
     var viewportZoom: Double = 1.0     // trackpad pinch / shortcut zoom
@@ -54,8 +61,34 @@ final class DocumentStore {
     #endif
     var controlServerPort: Int = 7979
     /// Marquee selection in doc (top-down) coords. nil = no selection. Used by
-    /// Generative Fill to constrain the regenerated region.
+    /// Generative Fill to constrain the regenerated region. For non-rectangular
+    /// selections (e.g. lasso) this stores the path's bounding box; the actual
+    /// shape lives in `selectionPath`.
     var selectionRect: CGRect?
+    /// The canonical selection shape in doc (top-down) coords. Always set to
+    /// a closed CGPath when there's an active selection; nil otherwise.
+    /// Marquee writes a rect path; lasso writes a free polygon. Paint and
+    /// future selection-aware features should clip against this.
+    var selectionPath: CGPath?
+
+    /// Set a rectangular selection (marquee tool). Keeps `selectionPath` in
+    /// sync with a rect path so downstream consumers can rely on it.
+    func setSelection(rect: CGRect) {
+        selectionRect = rect
+        selectionPath = CGPath(rect: rect, transform: nil)
+    }
+
+    /// Set a free-form selection (lasso). Updates `selectionRect` to the
+    /// path's bounding box for callers that only understand rects.
+    func setSelection(path: CGPath) {
+        selectionPath = path
+        selectionRect = path.boundingBoxOfPath
+    }
+
+    func clearSelection() {
+        selectionRect = nil
+        selectionPath = nil
+    }
     /// Generative-fill progress message — non-nil while a fill is in flight.
     var generativeProgress: String?
 
@@ -281,6 +314,36 @@ final class DocumentStore {
         addLayer(copy)
     }
 
+    /// Bake a layer's full appearance — content + filters + adjustments + mask
+    /// + styles + composite-time text transforms — into a flat raster layer.
+    /// `offset` / `opacity` / `blend` are preserved so the layer's relationship
+    /// to the rest of the doc is unchanged. Idempotent: rasterizing an
+    /// already-flat raster layer just re-bakes the same pixels.
+    @discardableResult
+    func rasterizeLayer(_ id: UUID) -> Bool {
+        guard let L = layers.first(where: { $0.id == id }) else { return false }
+        guard let baked = LayerRenderer.bakedImage(layer: L, canvasSize: canvasSize) else {
+            tlog("rasterizeLayer: bakedImage failed for '\(L.name)'")
+            return false
+        }
+        checkpoint("Rasterize Layer")
+        L.kind = .raster
+        L.raster = baked
+        L.smart = nil
+        L.mask = nil
+        L.adjust = Adjustments()
+        L.filters = Filters()
+        L.styles = LayerStyles()
+        L.skin = SkinRetouch()
+        L.relight = Relight()
+        L.studioRelight = StudioRelight()
+        L.text = TextContent()
+        L.gradient = GradientContent()
+        L.solid = SolidContent()
+        invalidate()
+        return true
+    }
+
     func move(_ id: UUID, to newIndex: Int) {
         guard let ix = layers.firstIndex(where: { $0.id == id }) else { return }
         let layer = layers.remove(at: ix)
@@ -323,11 +386,16 @@ final class DocumentStore {
 enum HSLTATChannel: String, Sendable { case hue, sat, lum }
 
 enum Tool: String, CaseIterable, Sendable {
-    case move, marquee, pencil, pen, eraser, text, eyedropper, relight
+    case move, marquee, lasso, polygonalLasso, magicWand, smartSelect
+    case pencil, pen, eraser, text, eyedropper, relight
     var symbol: String {
         switch self {
         case .move: return "arrow.up.and.down.and.arrow.left.and.right"
         case .marquee: return "rectangle.dashed"
+        case .lasso: return "lasso"
+        case .polygonalLasso: return "lasso.badge.sparkles"   // visually distinct from free-form lasso
+        case .magicWand: return "wand.and.stars"
+        case .smartSelect: return "sparkles.rectangle.stack"  // AI-driven object selection
         case .pencil: return "pencil.tip"
         case .pen: return "scribble.variable"
         case .eraser: return "eraser"
@@ -338,7 +406,10 @@ enum Tool: String, CaseIterable, Sendable {
     }
     var label: String {
         switch self {
-        case .move: return "Move"; case .marquee: return "Marquee"
+        case .move: return "Move"; case .marquee: return "Marquee"; case .lasso: return "Lasso"
+        case .polygonalLasso: return "Polygonal Lasso"
+        case .magicWand: return "Magic Wand"
+        case .smartSelect: return "Smart Select"
         case .pencil: return "Pencil"; case .pen: return "Pen"
         case .eraser: return "Eraser"; case .text: return "Text"; case .eyedropper: return "Eyedropper"
         case .relight: return "Relight"
@@ -350,17 +421,17 @@ enum Tool: String, CaseIterable, Sendable {
     /// Source-of-truth so ToolSidebar + any future palette display agree.
     var isImplemented: Bool {
         switch self {
-        case .move, .marquee, .text, .eyedropper, .relight: return true
-        case .pencil, .pen, .eraser: return false  // hand-drawing tools — v0.3+
+        case .move, .marquee, .lasso, .polygonalLasso, .magicWand, .smartSelect,
+             .text, .eyedropper, .relight, .pencil, .eraser: return true
+        case .pen: return false  // vector paths — later milestone
         }
     }
 
     /// Roadmap milestone for placeholder tools (used in tooltips).
     var plannedFor: String? {
         switch self {
-        case .pencil, .eraser: return "v0.3 (raster paint engine)"
-        case .pen:             return "v0.3 (vector paths)"
-        default:               return nil
+        case .pen: return "later (vector paths)"
+        default:   return nil
         }
     }
 

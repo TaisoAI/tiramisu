@@ -143,6 +143,9 @@ struct LayerRow: View {
                 store.activeLayerID = layer.id
                 store.duplicateActive()
             }.keyboardShortcut("d", modifiers: [.command])
+            Button("Rasterize Layer") {
+                store.rasterizeLayer(layer.id)
+            }
             Divider()
             Button(layer.visible ? "Hide" : "Show") {
                 layer.visible.toggle(); store.invalidate()
