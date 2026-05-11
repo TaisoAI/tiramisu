@@ -39,6 +39,9 @@ struct AppCommands: Commands {
                 .keyboardShortcut("c", modifiers: [.command, .shift])
         }
         CommandMenu("AI") {
+            Button("Reimagine Whole Image…") { ReimagineSheetPresenter.present(store: store) }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+            Divider()
             Button("Generative Fill…") { GenerativeFillUI.present(store: store) }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
             Divider()

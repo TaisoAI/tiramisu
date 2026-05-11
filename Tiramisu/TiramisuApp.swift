@@ -18,8 +18,16 @@ struct TiramisuApp: App {
                         ControlServer.shared.start(on: store.controlServerPort, store: store)
                     }
                     if !isUITest {
-                        // Show the first-run welcome dialog if it hasn't been dismissed.
-                        WelcomeWindow.showIfNeeded()
+                        // Session restoration: if the previous session ended
+                        // with a saved .tira file open, reload it. If the
+                        // file moved/was deleted, fall back to the welcome
+                        // flow. Suppresses the Welcome window when a doc
+                        // restores cleanly.
+                        if let url = DocumentStore.pendingRestoreURL() {
+                            TiramisuApp.loadFile(url: url, into: store)
+                        } else {
+                            WelcomeWindow.showIfNeeded()
+                        }
                     }
                 }
                 .onOpenURL { url in
@@ -38,6 +46,16 @@ struct TiramisuApp: App {
             DebugConsoleView()
         }
         .defaultSize(width: 920, height: 440)
+
+        // Standard macOS Settings window (⌘,). v0.6 ships one pane:
+        // AI Providers. v0.6.1 will add Routing + Privacy.
+        Settings {
+            TabView {
+                AIProvidersSettings()
+                    .tabItem { Label("AI Providers", systemImage: "sparkles") }
+            }
+            .frame(minWidth: 580, minHeight: 460)
+        }
     }
 
     @MainActor

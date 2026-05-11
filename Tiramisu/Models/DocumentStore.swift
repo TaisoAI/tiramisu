@@ -27,7 +27,19 @@ final class DocumentStore {
     /// True = flood-fill only the contiguous region. False = select all
     /// pixels in the image with a similar color.
     var magicWandContiguous: Bool = true
-    var currentFileURL: URL?
+    var currentFileURL: URL? {
+        didSet {
+            // Persist the last-opened file path so the next app launch
+            // can re-open it. Cleared (nil) when the user starts a new
+            // unsaved doc, so we don't try to re-open a non-existent path.
+            if let url = currentFileURL {
+                UserDefaults.standard.set(url.path, forKey: Self.lastOpenDocKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.lastOpenDocKey)
+            }
+        }
+    }
+    private static let lastOpenDocKey = "world.hanley.tiramisu.lastOpenDoc"
     var isDirty: Bool = false
     var viewportZoom: Double = 1.0     // trackpad pinch / shortcut zoom
     var viewportZoomBase: Double = 1.0
@@ -103,6 +115,27 @@ final class DocumentStore {
         self.layers = []
         self.activeLayerID = nil
         self.recentFiles = loadRecents()
+    }
+
+    /// If the last session ended with a `.tira` file open, return its URL
+    /// so the app can auto-reload on launch. Nil when:
+    /// - no last doc was tracked (fresh install / user closed an unsaved doc)
+    /// - the file has been moved or deleted since (we don't lie about its
+    ///   existence; caller falls back to the empty welcome state).
+    static func pendingRestoreURL() -> URL? {
+        guard let path = UserDefaults.standard.string(forKey: lastOpenDocKey),
+              !path.isEmpty,
+              FileManager.default.fileExists(atPath: path) else {
+            return nil
+        }
+        return URL(fileURLWithPath: path)
+    }
+
+    /// Clear the persisted last-doc reference. Called when the user
+    /// explicitly chose New Document — we don't want to overwrite that
+    /// intent with the previous file on the next launch.
+    static func clearPendingRestore() {
+        UserDefaults.standard.removeObject(forKey: lastOpenDocKey)
     }
 
     private func loadRecents() -> [URL] {

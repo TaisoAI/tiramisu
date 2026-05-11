@@ -144,9 +144,37 @@ struct LocalFluxFillService: GenerativeFillService {
         ]
         // Inherit user environment (PATH, HF_HOME, HF_TOKEN if set in their shell)
         // and merge any explicit overrides we want to set programmatically.
-        var subprocEnv = ProcessInfo.processInfo.environment
+        //
+        // Two macOS-specific fixes layered here:
+        //
+        // 1) launchd-vs-shell-init: when Tiramisu is launched from Finder/Dock,
+        //    ProcessInfo.environment does NOT include vars set in the user's
+        //    `.zshrc` / `.zprofile` — launchd doesn't source those. ShellEnv
+        //    runs a one-shot login shell to capture HF_HOME / HF_TOKEN / etc.
+        //
+        // 2) Token-resolution flake in huggingface_hub: even when HF_HOME is
+        //    correctly set to a non-default path, some huggingface_hub
+        //    versions (especially under uv-isolated tool envs like mflux)
+        //    look at ~/.cache/huggingface/token rather than $HF_HOME/token
+        //    and silently 401 on gated repos. Bulletproof fix: read the
+        //    token ourselves, set HF_TOKEN explicitly. That env var
+        //    overrides every other lookup in every huggingface_hub release.
+        var subprocEnv = ShellEnv.merged(into: ProcessInfo.processInfo.environment)
         if let cache = modelHFCacheDir {
             subprocEnv["HF_HOME"] = cache.path
+        }
+        // Pin HF_TOKEN from whatever token file we can find — caller-supplied
+        // env wins, then HF_HOME/token, then default ~/.cache/huggingface/token.
+        if subprocEnv["HF_TOKEN"] == nil || subprocEnv["HF_TOKEN"]?.isEmpty == true {
+            let hfHomeForToken = subprocEnv["HF_HOME"] ?? NSString(string: "~/.cache/huggingface").expandingTildeInPath
+            let tokenPath = NSString(string: hfHomeForToken).appendingPathComponent("token")
+            if let raw = try? String(contentsOfFile: tokenPath, encoding: .utf8) {
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    subprocEnv["HF_TOKEN"] = trimmed
+                    tlog("LocalFlux: passing HF_TOKEN from \(tokenPath) (len=\(trimmed.count))")
+                }
+            }
         }
         for (k, v) in extraEnv { subprocEnv[k] = v }
         proc.environment = subprocEnv
@@ -256,10 +284,12 @@ struct LocalFluxFillService: GenerativeFillService {
 }
 
 /// Bounded ring buffer of stream lines for diagnostics. Keeps memory
-/// flat across long mflux runs while still preserving the tail that
-/// matters when the subprocess fails. Actor-isolated so the streaming
-/// task and the post-exit reader don't race.
-private actor LineBuffer {
+/// flat across long subprocess runs while still preserving the tail
+/// that matters when the subprocess fails. Actor-isolated so the
+/// streaming task and the post-exit reader don't race. Internal-by-default
+/// (was private) so both `LocalFluxFillService` and `LocalQwenImageService`
+/// share the same diagnostic plumbing.
+actor LineBuffer {
     private var lines: [String] = []
     private let capacity: Int
 

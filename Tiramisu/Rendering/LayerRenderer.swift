@@ -6,7 +6,7 @@ import Metal
 
 /// All compositing goes through a Metal-backed CIContext for 4K responsiveness.
 enum LayerRenderer {
-    nonisolated(unsafe) static let ciContext: CIContext = {
+    static let ciContext: CIContext = {
         if let dev = MTLCreateSystemDefaultDevice() {
             return CIContext(mtlDevice: dev, options: [
                 .cacheIntermediates: true,
