@@ -20,7 +20,7 @@ If you pick **AI → Generative Fill Settings → Replicate** and enter an API k
 If you choose Local FLUX-Fill, the bootstrap script downloads the model weights (~24 GB) from [huggingface.co](https://huggingface.co) using your Hugging Face token. After the download, no further network calls.
 
 ### 3. Auto-update check (planned, opt-in, v0.2+)
-When Sparkle auto-updates land, the app will check for new releases on a schedule. This is a single GET to a static `appcast.xml` on `tiramisu.hanley.world` — no body, no telemetry, just "is there a newer version." Opt-out from **Settings → Updates**.
+When Sparkle auto-updates land, the app will check for new releases on a schedule. This is a single GET to a static `appcast.xml` on `tiramisu.taiso.ai` — no body, no telemetry, just "is there a newer version." Opt-out from **Settings → Updates**.
 
 ## What we'd never do
 
@@ -31,7 +31,7 @@ When Sparkle auto-updates land, the app will check for new releases on a schedul
 
 ## Reach us
 
-Privacy questions: open an [issue](https://github.com/hanley-tech/tiramisu/issues/new) or email `privacy@hanley.world`.
+Privacy questions: open an [issue](https://github.com/TaisoAI/tiramisu/issues/new) or email `privacy@taiso.ai`.
 
 This is the canonical statement. If anything changes, we'll update this file and note it in the release notes.
 

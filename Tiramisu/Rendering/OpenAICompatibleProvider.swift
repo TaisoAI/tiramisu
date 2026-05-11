@@ -4,10 +4,10 @@ import CoreGraphics
 struct OpenAICompatibleProvider: AIImageProvider {
     static let idValue = "openaicompat"
 
-    private static let baseURLKey   = "world.hanley.tiramisu.openaicompat.baseurl"
-    private static let apiKeyKey    = "world.hanley.tiramisu.openaicompat.apikey"
-    private static let modelKey     = "world.hanley.tiramisu.openaicompat.model"
-    private static let authStyleKey = "world.hanley.tiramisu.openaicompat.authstyle"
+    private static let baseURLKey   = "ai.taiso.tiramisu.openaicompat.baseurl"
+    private static let apiKeyKey    = "ai.taiso.tiramisu.openaicompat.apikey"
+    private static let modelKey     = "ai.taiso.tiramisu.openaicompat.model"
+    private static let authStyleKey = "ai.taiso.tiramisu.openaicompat.authstyle"
 
     enum AuthStyle: String, CaseIterable, Identifiable {
         case azureAPIKey = "azure"   // api-key header, deployment in URL path

@@ -22,7 +22,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>world.hanley.tiramisu.project</string>
+				<string>ai.taiso.tiramisu.project</string>
 			</array>
 		</dict>
 	</array>
@@ -66,7 +66,7 @@
 			<key>UTTypeDescription</key>
 			<string>Tiramisu Project</string>
 			<key>UTTypeIdentifier</key>
-			<string>world.hanley.tiramisu.project</string>
+			<string>ai.taiso.tiramisu.project</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

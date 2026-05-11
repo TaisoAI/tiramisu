@@ -7,9 +7,9 @@ import CoreGraphics
 struct LocalFluxProvider: AIImageProvider {
     static let idValue = "localflux"
 
-    private static let quantizeDefault   = "world.hanley.tiramisu.localflux.quantize"
-    private static let stepsDefault      = "world.hanley.tiramisu.localflux.steps"
-    private static let strengthDefault   = "world.hanley.tiramisu.localflux.strength"
+    private static let quantizeDefault   = "ai.taiso.tiramisu.localflux.quantize"
+    private static let stepsDefault      = "ai.taiso.tiramisu.localflux.steps"
+    private static let strengthDefault   = "ai.taiso.tiramisu.localflux.strength"
 
     var id: String { Self.idValue }
     var displayName: String { "Local FLUX (on-device)" }

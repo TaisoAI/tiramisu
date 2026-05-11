@@ -6,7 +6,7 @@ import Foundation
 /// process). Required for sandbox apps to reopen recents and save back to
 /// `currentFileURL` after a restart.
 enum FileBookmarks {
-    private static let prefix = "world.hanley.tiramisu.bookmark."
+    private static let prefix = "ai.taiso.tiramisu.bookmark."
 
     /// Capture and store a security-scoped bookmark for a URL the user just
     /// picked (open / save panel result).

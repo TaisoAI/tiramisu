@@ -9,7 +9,7 @@
 # Requires (all enforced by the pre-flight check below):
 #   - macOS 26 SDK (Xcode 17+)
 #   - xcodegen, create-dmg
-#   - gh CLI signed in to hanley-tech
+#   - gh CLI signed in to hanley-taiso (TaisoAI org member)
 #   - "Developer ID Application: Hanley Tze Ho Leung (FG5Y9SD7U6)" in keychain
 #   - notarytool profile "tiramisu-notary" stored in keychain. One-time:
 #       xcrun notarytool store-credentials "tiramisu-notary" \
@@ -34,8 +34,8 @@
 #      always-latest GitHub URL serves it without per-release config)
 #
 # Distribution: GitHub Releases is the canonical and only host. The
-# tiramisu.hanley.world/download URL is an nginx 302 redirect to
-# github.com/hanley-tech/tiramisu/releases/latest/download/Tiramisu.dmg.
+# tiramisu.taiso.ai/download URL is an nginx 302 redirect to
+# github.com/TaisoAI/tiramisu/releases/latest/download/Tiramisu.dmg.
 # That keeps the brand visible in the homepage button while letting
 # GitHub's CDN absorb HN-front-page-grade traffic spikes.
 
@@ -74,7 +74,7 @@ cd "$PROJECT_DIR"
 DEV_ID="Developer ID Application: Hanley Tze Ho Leung (FG5Y9SD7U6)"
 TEAM_ID="FG5Y9SD7U6"
 NOTARY_PROFILE="tiramisu-notary"
-GH_REPO="hanley-tech/tiramisu"
+GH_REPO="TaisoAI/tiramisu"
 
 VERSION="${TAG#v}"
 BUILD_DIR="$PROJECT_DIR/build/release"
@@ -82,7 +82,7 @@ ARCHIVE_PATH="$BUILD_DIR/Tiramisu.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
 APP_PATH="$EXPORT_DIR/Tiramisu.app"
 # Asset name has no version suffix so the always-latest GitHub URL works:
-#   github.com/hanley-tech/tiramisu/releases/latest/download/Tiramisu.dmg
+#   github.com/TaisoAI/tiramisu/releases/latest/download/Tiramisu.dmg
 # The release tag (v0.1.0) carries the version info via the tag URL when
 # someone needs to link to a historical version.
 DMG_NAME="Tiramisu.dmg"
@@ -283,5 +283,5 @@ echo
 echo "  GitHub release:    https://github.com/$GH_REPO/releases/tag/$TAG"
 echo "  Direct DMG:        https://github.com/$GH_REPO/releases/download/$TAG/Tiramisu.dmg"
 echo "  Always-latest URL: https://github.com/$GH_REPO/releases/latest/download/Tiramisu.dmg"
-echo "  Branded redirect:  https://tiramisu.hanley.world/download"
+echo "  Branded redirect:  https://tiramisu.taiso.ai/download"
 echo "  Local DMG:         $DMG_PATH"

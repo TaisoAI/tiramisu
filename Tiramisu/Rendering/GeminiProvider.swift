@@ -2,12 +2,12 @@ import Foundation
 import CoreGraphics
 
 /// `AIImageProvider` conformance for Google Gemini. Stores its API key
-/// in UserDefaults under `world.hanley.tiramisu.gemini.apiKey` and the
+/// in UserDefaults under `ai.taiso.tiramisu.gemini.apiKey` and the
 /// selected model under `.gemini.model` (defaults to Nano Banana).
 struct GeminiProvider: AIImageProvider {
     static let idValue = "gemini"
-    private static let apiKeyDefault = "world.hanley.tiramisu.gemini.apiKey"
-    private static let modelDefault  = "world.hanley.tiramisu.gemini.model"
+    private static let apiKeyDefault = "ai.taiso.tiramisu.gemini.apiKey"
+    private static let modelDefault  = "ai.taiso.tiramisu.gemini.model"
 
     var id: String { Self.idValue }
     var displayName: String { "Google Gemini" }

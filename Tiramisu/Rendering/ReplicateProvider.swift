@@ -3,7 +3,7 @@ import Foundation
 /// `AIImageProvider` conformance for Replicate. Wraps the existing
 /// `ReplicateFillService` + `GenerativeFillSettings` machinery — no
 /// behavior change. Reads the same UserDefaults key
-/// (`world.hanley.tiramisu.replicate.apiKey`) so existing users keep
+/// (`ai.taiso.tiramisu.replicate.apiKey`) so existing users keep
 /// their key on upgrade. Zero migration.
 struct ReplicateProvider: AIImageProvider {
     static let idValue = "replicate"

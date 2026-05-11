@@ -9,7 +9,7 @@ For anything beyond a small fix, **open an issue first** to discuss. It saves bo
 ## Setup
 
 ```bash
-git clone https://github.com/hanley-tech/tiramisu.git
+git clone https://github.com/TaisoAI/tiramisu.git
 cd tiramisu
 brew install xcodegen
 xcodegen generate
@@ -55,7 +55,7 @@ No formal style guide yet. Match what's already in the file. Some loose conventi
 
 ## Reporting bugs
 
-Open a [GitHub issue](https://github.com/hanley-tech/tiramisu/issues/new). Include:
+Open a [GitHub issue](https://github.com/TaisoAI/tiramisu/issues/new). Include:
 
 - macOS version + chip (M-series, year)
 - What you did, what you expected, what happened

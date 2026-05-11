@@ -4,7 +4,7 @@ If you've found a security issue in Tiramisu, please report it privately. **Don'
 
 ## How to report
 
-Email **`security@hanley.world`** with:
+Email **`security@taiso.ai`** with:
 
 - A description of the issue.
 - Steps to reproduce, or a proof-of-concept if you have one.

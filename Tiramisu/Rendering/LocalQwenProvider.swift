@@ -9,8 +9,8 @@ import CoreGraphics
 struct LocalQwenProvider: AIImageProvider {
     static let idValue = "localqwen"
 
-    private static let modeDefault = "world.hanley.tiramisu.localqwen.mode"
-    private static let quantDefault = "world.hanley.tiramisu.localqwen.quant"
+    private static let modeDefault = "ai.taiso.tiramisu.localqwen.mode"
+    private static let quantDefault = "ai.taiso.tiramisu.localqwen.quant"
 
     var id: String { Self.idValue }
     var displayName: String { "Local Qwen-Image-Edit (on-device)" }

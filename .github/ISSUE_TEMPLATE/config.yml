@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security disclosure
-    url: https://github.com/hanley-tech/tiramisu/security/advisories/new
+    url: https://github.com/TaisoAI/tiramisu/security/advisories/new
     about: Privately report a security vulnerability (see SECURITY.md).
   - name: Question or discussion
-    url: https://github.com/hanley-tech/tiramisu/discussions
+    url: https://github.com/TaisoAI/tiramisu/discussions
     about: Open-ended question, design idea, or general discussion.

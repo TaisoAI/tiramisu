@@ -44,7 +44,7 @@ git add -A
 git commit -m "Site: vX.Y.Z roadmap + release notes + snapshots"
 git push origin main         # rsync→Lightsail picks it up
 
-# Done. tiramisu.hanley.world/download now serves the new DMG.
+# Done. tiramisu.taiso.ai/download now serves the new DMG.
 ```
 
 ---
@@ -186,8 +186,8 @@ release:
 ### 6. Distribution
 
 Distribution is GitHub Releases only. The branded URL
-`tiramisu.hanley.world/download` is an nginx 302 to
-`github.com/hanley-tech/tiramisu/releases/latest/download/Tiramisu.dmg`,
+`tiramisu.taiso.ai/download` is an nginx 302 to
+`github.com/TaisoAI/tiramisu/releases/latest/download/Tiramisu.dmg`,
 so a new release auto-promotes — no DNS or homepage edits required.
 
 ---
@@ -217,5 +217,5 @@ exist:
   app-specific password from appleid.apple.com
 - `Developer ID Application: Hanley Tze Ho Leung (FG5Y9SD7U6)`
   certificate in the login keychain
-- `gh` CLI signed in as `hanley-tech`
+- `gh` CLI signed in as `hanley-taiso` (TaisoAI org member)
 - `brew install xcodegen create-dmg` for the build tools

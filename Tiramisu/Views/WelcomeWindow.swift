@@ -4,10 +4,10 @@ import AppKit
 /// First-run welcome dialog. Custom SwiftUI window styled to match the
 /// marketing-site brand (mascarpone background, espresso/cocoa typography,
 /// accent-orange CTA). Stores a "don't show again" preference under
-/// `world.hanley.tiramisu.welcomeShown`.
+/// `ai.taiso.tiramisu.welcomeShown`.
 @MainActor
 enum WelcomeWindow {
-    private static let prefsKey = "world.hanley.tiramisu.welcomeShown"
+    private static let prefsKey = "ai.taiso.tiramisu.welcomeShown"
     private static var window: NSWindow?
 
     static func showIfNeeded() {
@@ -30,7 +30,7 @@ enum WelcomeWindow {
                 case .setupAI:
                     GenerativeFillUI.runLocalFluxBootstrap()
                 case .visitWebsite:
-                    if let url = URL(string: "https://tiramisu.hanley.world") {
+                    if let url = URL(string: "https://tiramisu.taiso.ai") {
                         NSWorkspace.shared.open(url)
                     }
                 }

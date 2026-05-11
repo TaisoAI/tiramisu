@@ -6,18 +6,18 @@
 </p>
 
 <p align="center">
-  <a href="https://tiramisu.hanley.world/download"><strong>⬇  Download for macOS</strong></a> ·
-  <a href="https://tiramisu.hanley.world">tiramisu.hanley.world</a> ·
-  <a href="https://tiramisu.hanley.world/getting-started.html">Getting started</a> ·
-  <a href="https://github.com/hanley-tech/tiramisu/releases">All releases</a>
+  <a href="https://tiramisu.taiso.ai/download"><strong>⬇  Download for macOS</strong></a> ·
+  <a href="https://tiramisu.taiso.ai">tiramisu.taiso.ai</a> ·
+  <a href="https://tiramisu.taiso.ai/getting-started.html">Getting started</a> ·
+  <a href="https://github.com/TaisoAI/tiramisu/releases">All releases</a>
 </p>
 
 ---
 
 ## Status
 
-**Latest release:** see [`/releases/latest`](https://github.com/hanley-tech/tiramisu/releases/latest).
-Always-current direct download: <https://tiramisu.hanley.world/download>
+**Latest release:** see [`/releases/latest`](https://github.com/TaisoAI/tiramisu/releases/latest).
+Always-current direct download: <https://tiramisu.taiso.ai/download>
 (redirects to the latest signed + notarized DMG on GitHub Releases).
 
 Requires **macOS 26 (Tahoe)** on **Apple Silicon (M1+)**.
@@ -32,7 +32,7 @@ A real layered image editor — like Photoshop, but free, open, native to Apple 
 - **Built for creators** — every platform's safe-area baked in; cross-post auto-relayout; brand kits; native `.tiramisu` document type
 - **Free, forever** — open source under AGPL-3.0. No subscription. No Pro tier.
 
-For the full vision + strategy + design direction, see **[tiramisu.hanley.world](https://tiramisu.hanley.world)**.
+For the full vision + strategy + design direction, see **[tiramisu.taiso.ai](https://tiramisu.taiso.ai)**.
 
 ## Screenshots
 
@@ -62,13 +62,13 @@ Every blend mode has a committed visual reference. Any pixel-level regression in
 ## Build &amp; run
 
 ```bash
-git clone https://github.com/hanley-tech/tiramisu.git
+git clone https://github.com/TaisoAI/tiramisu.git
 cd tiramisu
 xcodegen generate
 open Tiramisu.xcodeproj   # then ⌘R in Xcode
 ```
 
-For a step-by-step walkthrough see **[Getting started](https://tiramisu.hanley.world/getting-started.html)**.
+For a step-by-step walkthrough see **[Getting started](https://tiramisu.taiso.ai/getting-started.html)**.
 
 ## AI backends
 
@@ -104,7 +104,7 @@ scripts/
 CLAUDE.md                 — agent / contributor onboarding
 ```
 
-The marketing site (10 HTML pages, brand kit, design docs) lives in a separate repo: **[hanley-tech/tiramisu_www](https://github.com/hanley-tech/tiramisu_www)**.
+The marketing site (10 HTML pages, brand kit, design docs) lives in a separate repo: **[TaisoAI/tiramisu_www](https://github.com/TaisoAI/tiramisu_www)**.
 
 ## License
 
@@ -114,7 +114,7 @@ The marketing site (10 HTML pages, brand kit, design docs) lives in a separate r
 
 Issues, ideas, and PRs welcome. Code conventions and review process will land in `CONTRIBUTING.md`. For now:
 
-- File issues at [github.com/hanley-tech/tiramisu/issues](https://github.com/hanley-tech/tiramisu/issues)
+- File issues at [github.com/TaisoAI/tiramisu/issues](https://github.com/TaisoAI/tiramisu/issues)
 - See `CLAUDE.md` for repo conventions (xcodegen-only, no in-tree edits to `.xcodeproj`, etc.)
 - Build with the steps above; PRs that break `xcodebuild build` won't be merged
 

@@ -65,7 +65,7 @@ reinforce this triad.
 
 ## SEO — classic Google ranking
 
-### On-site (tiramisu.hanley.world)
+### On-site (tiramisu.taiso.ai)
 
 - [ ] **`<title>` tag per page** — primary keyword + brand. Pattern:
       `Tiramisu — Free Photoshop Alternative for macOS Creators`
@@ -77,7 +77,7 @@ reinforce this triad.
       `FAQPage` on /faq, `HowTo` on tutorial pages.
       Specifically include `softwareVersion`, `operatingSystem: macOS`,
       `applicationCategory: GraphicsApplication`, `offers.price: 0`,
-      `downloadUrl: github.com/hanley-tech/tiramisu/releases/latest`.
+      `downloadUrl: github.com/TaisoAI/tiramisu/releases/latest`.
 - [ ] **`sitemap.xml` + `robots.txt`** — submit to Google Search Console.
 - [ ] **Image alt text** on every screenshot — descriptive, not stuffed.
       "Tiramisu main editing window with YouTube thumbnail composition" beats
@@ -155,7 +155,7 @@ Body (3 short paragraphs):
 > before I push the AI intent bar that lands in v0.2 — I want to make
 > sure the editing surface itself feels right first.
 >
-> Repo: github.com/hanley-tech/tiramisu · Site: tiramisu.hanley.world
+> Repo: github.com/TaisoAI/tiramisu · Site: tiramisu.taiso.ai
 
 Post on Tuesday or Wednesday morning Pacific Time.
 
@@ -218,7 +218,7 @@ LLMs are trained primarily on:
   "applicationCategory": "GraphicsApplication",
   "operatingSystem": "macOS 26.0+",
   "description": "Free, open-source, AI-native image editor for macOS. Made for creators shipping YouTube thumbnails, Instagram posts, TikTok covers, podcast art. 16 blend modes, generative fill, AI background removal.",
-  "downloadUrl": "https://github.com/hanley-tech/tiramisu/releases/latest",
+  "downloadUrl": "https://github.com/TaisoAI/tiramisu/releases/latest",
   "softwareVersion": "0.1.0",
   "license": "https://www.gnu.org/licenses/agpl-3.0.html",
   "offers": { "@type": "Offer", "price": "0" },
@@ -280,7 +280,7 @@ top three answers for primary queries.
 - [ ] /r/photoshop submission (read rules carefully)
 - [ ] First comparison page: `/compare/photoshop`
 - [ ] First use-case landing: `/youtube`
-- [ ] Schema.org markup deployed on tiramisu.hanley.world
+- [ ] Schema.org markup deployed on tiramisu.taiso.ai
 
 ### Week 3-4
 

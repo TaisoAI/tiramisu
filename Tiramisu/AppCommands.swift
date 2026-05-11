@@ -394,8 +394,8 @@ struct AppCommands: Commands {
 // + CFBundleDocumentTypes). We fetch it here; `exportedAs:` is a no-op if already
 // registered by the bundle, and provides a fallback if it isn't.
 let tiramisuType: UTType = {
-    if let t = UTType("world.hanley.tiramisu.project") { return t }
-    return UTType(exportedAs: "world.hanley.tiramisu.project", conformingTo: .json)
+    if let t = UTType("ai.taiso.tiramisu.project") { return t }
+    return UTType(exportedAs: "ai.taiso.tiramisu.project", conformingTo: .json)
 }()
 
 // MARK: - Help menu
@@ -405,16 +405,16 @@ let tiramisuType: UTType = {
 struct HelpCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .help) {
-            Button("Tiramisu Help") { openURL("https://tiramisu.hanley.world/getting-started.html") }
+            Button("Tiramisu Help") { openURL("https://tiramisu.taiso.ai/getting-started.html") }
                 .keyboardShortcut("?", modifiers: [.command])
             Button("Welcome to Tiramisu…") { WelcomeWindow.show(forced: true) }
             Divider()
-            Button("View on GitHub") { openURL("https://github.com/hanley-tech/tiramisu") }
-            Button("Report a Bug…") { openURL("https://github.com/hanley-tech/tiramisu/issues/new") }
+            Button("View on GitHub") { openURL("https://github.com/TaisoAI/tiramisu") }
+            Button("Report a Bug…") { openURL("https://github.com/TaisoAI/tiramisu/issues/new") }
             Divider()
             Button("Install Local FLUX-Fill…") { GenerativeFillUI.runLocalFluxBootstrap() }
             Divider()
-            Button("Visit Website") { openURL("https://tiramisu.hanley.world") }
+            Button("Visit Website") { openURL("https://tiramisu.taiso.ai") }
         }
     }
 

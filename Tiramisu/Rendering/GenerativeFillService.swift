@@ -182,9 +182,9 @@ struct ReplicateFillService: GenerativeFillService {
 
 /// Where the API key is stored. UserDefaults for MVP — Keychain upgrade later.
 enum GenerativeFillSettings {
-    private static let apiKeyKey = "world.hanley.tiramisu.replicate.apiKey"
-    private static let modelKey = "world.hanley.tiramisu.replicate.model"
-    private static let backendKey = "world.hanley.tiramisu.fill.backend"
+    private static let apiKeyKey = "ai.taiso.tiramisu.replicate.apiKey"
+    private static let modelKey = "ai.taiso.tiramisu.replicate.model"
+    private static let backendKey = "ai.taiso.tiramisu.fill.backend"
 
     enum Backend: String { case replicate, localFlux, openaicompat }
 

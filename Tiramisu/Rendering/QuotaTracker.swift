@@ -10,12 +10,12 @@ import Foundation
 /// provider's own dashboard remains authoritative. The Reimagine sheet
 /// surfaces this caveat via a small disclaimer.
 ///
-/// Keys: `world.hanley.tiramisu.quota.{providerID}.{modelID}.{YYYY-MM-DD}`
+/// Keys: `ai.taiso.tiramisu.quota.{providerID}.{modelID}.{YYYY-MM-DD}`
 /// Garbage-collected on app launch (drops keys older than 3 days).
 final class QuotaTracker: @unchecked Sendable {
     static let shared = QuotaTracker()
 
-    private let prefix = "world.hanley.tiramisu.quota."
+    private let prefix = "ai.taiso.tiramisu.quota."
     private let calendar: Calendar
     private let dateFormatter: DateFormatter
 

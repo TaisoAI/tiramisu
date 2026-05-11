@@ -546,12 +546,12 @@ final class ControlServer {
             UserDefaults.standard.set(tab, forKey: "ui.inspector.tab")
         case "setSection":
             // InspectorSection persists open-state under
-            // "world.hanley.tiramisu.section.<title>" — same key the SwiftUI view binds to.
+            // "ai.taiso.tiramisu.section.<title>" — same key the SwiftUI view binds to.
             guard let title = obj["title"] as? String,
                   let open = obj["open"] as? Bool else {
                 return httpResponse(status: 400, body: "Need 'title' (string) and 'open' (bool)")
             }
-            UserDefaults.standard.set(open, forKey: "world.hanley.tiramisu.section.\(title)")
+            UserDefaults.standard.set(open, forKey: "ai.taiso.tiramisu.section.\(title)")
         case "clickAt":
             // Synthetic mouse click at window-content-relative coords (top-left origin,
             // matching how /window.png is captured). Translates to global screen coords

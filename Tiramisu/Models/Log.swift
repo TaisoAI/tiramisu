@@ -9,7 +9,7 @@ final class Log: @unchecked Sendable {
     @MainActor static let console = LogConsole()
 
     let fileURL: URL
-    private let queue = DispatchQueue(label: "world.hanley.tiramisu.log")
+    private let queue = DispatchQueue(label: "ai.taiso.tiramisu.log")
     private static let fmt: @Sendable () -> ISO8601DateFormatter = {
         // ISO8601DateFormatter is thread-safe per Apple docs but not typed Sendable.
         // Keep a per-thread instance to sidestep the Swift 6 complaint.

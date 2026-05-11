@@ -51,7 +51,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: world.hanley.tiramisu.project
+          - UTTypeIdentifier: ai.taiso.tiramisu.project
             UTTypeDescription: Tiramisu Project
             UTTypeConformsTo:
               - public.json
@@ -67,7 +67,7 @@ targets:
             CFBundleTypeRole: Editor
             LSHandlerRank: Owner
             LSItemContentTypes:
-              - world.hanley.tiramisu.project
+              - ai.taiso.tiramisu.project
             CFBundleTypeExtensions:
               - tira
               - tiramisu
@@ -86,7 +86,7 @@ targets:
         com.apple.security.network.client: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: world.hanley.tiramisu
+        PRODUCT_BUNDLE_IDENTIFIER: ai.taiso.tiramisu
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
@@ -117,7 +117,7 @@ targets:
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: world.hanley.tiramisu.tests
+        PRODUCT_BUNDLE_IDENTIFIER: ai.taiso.tiramisu.tests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
@@ -132,7 +132,7 @@ targets:
       - path: TiramisuUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: world.hanley.tiramisu.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: ai.taiso.tiramisu.uitests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_STRICT_CONCURRENCY: minimal
         ENABLE_HARDENED_RUNTIME: NO

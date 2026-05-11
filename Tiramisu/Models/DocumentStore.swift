@@ -39,7 +39,7 @@ final class DocumentStore {
             }
         }
     }
-    private static let lastOpenDocKey = "world.hanley.tiramisu.lastOpenDoc"
+    private static let lastOpenDocKey = "ai.taiso.tiramisu.lastOpenDoc"
     var isDirty: Bool = false
     var viewportZoom: Double = 1.0     // trackpad pinch / shortcut zoom
     var viewportZoomBase: Double = 1.0
@@ -59,7 +59,7 @@ final class DocumentStore {
     private let maxHistory = 50
     private var coalescingName: String? = nil    // when set, consecutive checkpoints with this name fold into the previous one
     private var watchers: [UUID: FileWatcher] = [:]
-    private let recentsKey = "world.hanley.tiramisu.recentFiles"
+    private let recentsKey = "ai.taiso.tiramisu.recentFiles"
     private let recentsMax = 10
     // Debug / test harness server.
     // - Debug builds: ON by default (so AI agents and ad-hoc testing have a surface).

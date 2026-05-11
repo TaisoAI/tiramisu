@@ -35,7 +35,7 @@ enum GenerativeFillUI {
             The Local FLUX-Fill setup script could not be found inside the app bundle or the source repo.
 
             Workaround: clone the source repo and run ./scripts/bootstrap.sh manually:
-              git clone https://github.com/hanley-tech/tiramisu.git
+              git clone https://github.com/TaisoAI/tiramisu.git
               cd tiramisu && ./scripts/bootstrap.sh
             """
             a.alertStyle = .warning

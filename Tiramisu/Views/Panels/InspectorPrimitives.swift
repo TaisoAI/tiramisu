@@ -19,7 +19,7 @@ struct InspectorSection<Content: View>: View {
         self.title = title
         self.defaultOpen = defaultOpen
         self.content = content
-        let key = "world.hanley.tiramisu.section.\(title)"
+        let key = "ai.taiso.tiramisu.section.\(title)"
         self._open = AppStorage(wrappedValue: defaultOpen, key)
     }
 

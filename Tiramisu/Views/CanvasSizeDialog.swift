@@ -5,7 +5,7 @@ import AppKit
 @MainActor
 enum CanvasSizeDialog {
     /// UserDefaults key for remembering the last custom size used.
-    private static let lastCustomKey = "world.hanley.tiramisu.canvas.lastCustom"
+    private static let lastCustomKey = "ai.taiso.tiramisu.canvas.lastCustom"
 
     static func present(store: DocumentStore) {
         let alert = NSAlert()

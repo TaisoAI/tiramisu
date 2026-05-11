@@ -167,10 +167,10 @@ help link, model selector, free-quota note. Rows render via a single
 **Storage:**
 
 - API keys: `UserDefaults.standard` under namespaced keys
-  (`world.hanley.tiramisu.gemini.apiKey`, etc.). The existing
-  `world.hanley.tiramisu.replicate.apiKey` stays put — zero migration.
-- Selected model per provider: `world.hanley.tiramisu.{providerID}.model`.
-- Per-feature provider routing (when added): `world.hanley.tiramisu.routing.{capability}`.
+  (`ai.taiso.tiramisu.gemini.apiKey`, etc.). The existing
+  `ai.taiso.tiramisu.replicate.apiKey` stays put — zero migration.
+- Selected model per provider: `ai.taiso.tiramisu.{providerID}.model`.
+- Per-feature provider routing (when added): `ai.taiso.tiramisu.routing.{capability}`.
 
 **Why not Keychain in v0.6:** keychain adds a first-run permission
 dialog, ~80 LOC of `SecItem` plumbing, mock layers in tests, and
@@ -236,7 +236,7 @@ actor QuotaTracker {
 }
 ```
 
-Persistence: `world.hanley.tiramisu.quota.{providerID}.{modelID}.{YYYY-MM-DD}`
+Persistence: `ai.taiso.tiramisu.quota.{providerID}.{modelID}.{YYYY-MM-DD}`
 in UserDefaults. Old keys (>3 days) get garbage-collected on app launch.
 
 ---
@@ -465,7 +465,7 @@ adding one is mechanical:
 
 ## 9. Migration
 
-**Trivial.** The existing `world.hanley.tiramisu.replicate.apiKey`
+**Trivial.** The existing `ai.taiso.tiramisu.replicate.apiKey`
 UserDefaults value stays where it is and the new `ReplicateProvider`
 reads from the same key. Users opening v0.6 see their existing key
 already populated in the new Settings pane. No data loss, no prompt.
@@ -549,4 +549,4 @@ Total: ~1 day across two coding sessions.
 - [Apple Settings Scene (SwiftUI)](https://developer.apple.com/documentation/swiftui/settings)
 - [/docs/v0.6-roadmap.md](./v0.6-roadmap.md) — engineering plan this spec slots into
 - [/docs/creator-workflows-2026.md](./creator-workflows-2026.md) — strategic thesis behind Reimagine
-- [/internal/v0-6-creator-ai-2026.html](https://tiramisu.hanley.world/internal/v0-6-creator-ai-2026.html) — intranet positioning page
+- [/internal/v0-6-creator-ai-2026.html](https://tiramisu.taiso.ai/internal/v0-6-creator-ai-2026.html) — intranet positioning page

@@ -52,7 +52,7 @@ struct AdjustTab: View {
 private struct LightingPanel: View {
     @Environment(DocumentStore.self) private var store
     @Bindable var layer: PXLayer
-    @AppStorage("world.hanley.tiramisu.adjust.customizeOpen") private var customizeOpen: Bool = false
+    @AppStorage("ai.taiso.tiramisu.adjust.customizeOpen") private var customizeOpen: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -208,7 +208,7 @@ private struct PresetChip: View {
 private struct HSLPanel: View {
     @Environment(DocumentStore.self) private var store
     @Bindable var layer: PXLayer
-    @AppStorage("world.hanley.tiramisu.adjust.hsl.tab") private var tab: String = "hue"
+    @AppStorage("ai.taiso.tiramisu.adjust.hsl.tab") private var tab: String = "hue"
 
     enum HSLChannel { case hue, sat, lum }
     private var activeChannel: HSLChannel {
