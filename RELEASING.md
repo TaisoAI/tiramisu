@@ -202,7 +202,7 @@ so a new release auto-promotes — no DNS or homepage edits required.
   before a public-launch tweet.
 - **Internal site (`tiramisu_www/internal/`)** — strategic docs, not
   per-release. Update when *strategy* shifts, not when *features* ship.
-- **Newsletter announcement** — Listmonk on `lists.hanley.world` is
+- **Newsletter announcement** — Listmonk on `lists.taiso.ai` is
   pending separate setup; the homepage signup form is HTML-commented
   until the LIST_UUID is populated.
 

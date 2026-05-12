@@ -1,13 +1,18 @@
 <h1 align="center">Tiramisu</h1>
 
 <p align="center">
-  <strong>A free, AI-native alternative to Photoshop — for macOS.</strong><br/>
-  Open source. Native to Apple Silicon. Made for creators.<br/>
-  A <a href="https://taiso.ai">Taiso AI</a> project.
+  <a href="https://taiso.ai"><img src="https://img.shields.io/badge/A%20Taiso%20AI%20project-1F1F1F?style=for-the-badge&labelColor=1F1F1F&color=B97A57" alt="A Taiso AI project"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=for-the-badge" alt="License: AGPL-3.0"/></a>
+  <img src="https://img.shields.io/badge/platform-macOS%2026%2B-lightgrey?style=for-the-badge" alt="Platform: macOS 26+"/>
 </p>
 
 <p align="center">
-  <a href="https://tiramisu.taiso.ai/download"><strong>⬇  Download for macOS</strong></a> ·
+  <strong>A free, AI-native alternative to Photoshop — for macOS.</strong><br/>
+  Open source. Native to Apple Silicon. Made for creators.
+</p>
+
+<p align="center">
+  <a href="https://github.com/TaisoAI/tiramisu/releases/latest/download/Tiramisu.dmg"><strong>⬇  Download for macOS</strong></a> ·
   <a href="https://tiramisu.taiso.ai">tiramisu.taiso.ai</a> ·
   <a href="https://tiramisu.taiso.ai/getting-started.html">Getting started</a> ·
   <a href="https://github.com/TaisoAI/tiramisu/releases">All releases</a>
@@ -18,8 +23,8 @@
 ## Status
 
 **Latest release:** see [`/releases/latest`](https://github.com/TaisoAI/tiramisu/releases/latest).
-Always-current direct download: <https://tiramisu.taiso.ai/download>
-(redirects to the latest signed + notarized DMG on GitHub Releases).
+Always-current direct download: <https://github.com/TaisoAI/tiramisu/releases/latest/download/Tiramisu.dmg>
+(GitHub auto-resolves this to the latest signed + notarized DMG).
 
 Requires **macOS 26 (Tahoe)** on **Apple Silicon (M1+)**.
 
@@ -106,6 +111,12 @@ CLAUDE.md                 — agent / contributor onboarding
 ```
 
 The marketing site (10 HTML pages, brand kit, design docs) lives in a separate repo: **[TaisoAI/tiramisu_www](https://github.com/TaisoAI/tiramisu_www)**.
+
+## About Taiso AI
+
+Tiramisu is built by **[Taiso AI](https://taiso.ai)** — a small studio shipping AI-native creator tools. We believe creators deserve a real editor where AI sits as a peer to the brush, not as a paywalled panel bolted onto the side. Tiramisu is open source under AGPL-3.0; the marketplace economics (Tier 1 recipes, Tier 4 prompt filters) live in the [strategy docs](https://tiramisu.taiso.ai). No subscription on the app, ever.
+
+Learn more at **[taiso.ai](https://taiso.ai)**.
 
 ## License
 

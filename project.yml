@@ -1,6 +1,6 @@
 name: Tiramisu
 options:
-  bundleIdPrefix: world.hanley
+  bundleIdPrefix: ai.taiso
   deploymentTarget:
     macOS: "26.0"
   xcodeVersion: "17.0"
