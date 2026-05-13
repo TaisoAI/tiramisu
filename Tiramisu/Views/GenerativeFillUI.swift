@@ -175,7 +175,12 @@ enum GenerativeFillUI {
         case .remove:
             if prompt.isEmpty { prompt = "natural background continuation, seamless, no objects, photorealistic" }
         case .expand:
-            if prompt.isEmpty { prompt = "seamless continuation of the existing photo, matching texture, color and lighting, photorealistic" }
+            // Anti-subject language up front. Without it, FLUX-Fill (and
+            // Replicate flux-fill-dev) happily invents people, faces, and
+            // objects in the empty bands even when given edge-padded
+            // priors. The "background only" + "empty space" phrasing
+            // consistently keeps the model focused on continuing texture.
+            if prompt.isEmpty { prompt = "seamless continuation of the existing photo, matching texture, color and lighting, photorealistic background only, empty space, no people, no faces, no figures, no subjects, no objects" }
         default: break
         }
 

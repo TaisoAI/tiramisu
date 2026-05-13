@@ -18,15 +18,20 @@ protocol GenerativeFillService: Sendable {
     var preferredInputSize: CGSize? { get }
 
     /// If true, the coordinator pre-fills empty expand bands with
-    /// stretched edge content before sending to the service. Set this for
-    /// backends that expect the image to have plausible content everywhere
-    /// (e.g. OpenAI images/edits) rather than mask-guided blank regions.
+    /// stretched edge content before sending to the service.
+    ///
+    /// Default is `true`. We learned the hard way that even mask-aware
+    /// backends (FLUX-Fill, Replicate's flux-fill-dev) hallucinate
+    /// subjects — including faces — when the bands arrive transparent
+    /// and the prompt is generic. Edge-padded priors keep the model
+    /// constrained to "continue this texture." A service can opt back
+    /// into bare context only when it has been proven safe in practice.
     var needsPrepFill: Bool { get }
 }
 
 extension GenerativeFillService {
     var preferredInputSize: CGSize? { nil }
-    var needsPrepFill: Bool { false }
+    var needsPrepFill: Bool { true }
 }
 
 /// What the user is asking the fill engine to do. Drives mask shape,

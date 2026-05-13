@@ -28,10 +28,15 @@ enum GenerativeFillCoordinator {
         let context: CGImage
         let mask: CGImage
         if mode == .expand {
-            // FLUX-Fill and Replicate are mask-aware — they figure out band
-            // content from the mask alone, no prep fill required. Backends
-            // that need real image content in all pixels (e.g. OpenAI
-            // images/edits) set needsPrepFill = true to get pre-stretched edges.
+            // Default: pre-fill the empty bands with stretched edge texture
+            // so the model has strong priors to "continue" rather than
+            // freedom to invent. Even mask-aware backends (FLUX-Fill,
+            // Replicate flux-fill-dev) hallucinate subjects — including
+            // faces — when the bands arrive transparent and the prompt is
+            // generic. A service can opt back into bare-context by
+            // overriding needsPrepFill = false, but the protocol default is
+            // true now. preferredInputSize != nil forces prep-fill too
+            // (the tiled SD path needs real content in each tile).
             let needsPrepFill = service.preferredInputSize != nil || service.needsPrepFill
             if needsPrepFill {
                 let prepared = try buildExpandInput(store: store, layer: activeLayer)
