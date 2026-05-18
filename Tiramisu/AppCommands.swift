@@ -24,8 +24,14 @@ struct AppCommands: Commands {
             Divider()
             Button("Place Image…") { placeImage() }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+            // Plain ⌘V — the universal paste shortcut users expect from
+            // Photoshop / Figma / Preview. When a text layer's NSTextView
+            // is first responder it consumes ⌘V via the responder chain
+            // (text paste) before this menu key-equivalent fires, so text
+            // editing is unaffected; everywhere else ⌘V pastes the
+            // clipboard image as a new Smart Object layer.
             Button("Paste Image as New Layer") { pasteImageFromClipboard() }
-                .keyboardShortcut("v", modifiers: [.command, .shift])
+                .keyboardShortcut("v", modifiers: [.command])
         }
         CommandGroup(replacing: .saveItem) {
             Button("Save") { save() }
