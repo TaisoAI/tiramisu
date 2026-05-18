@@ -31,7 +31,8 @@ enum CanvasSizeDialog {
         let wLabel = NSTextField(labelWithString: "W")
         wLabel.font = .systemFont(ofSize: 12, weight: .medium)
         let wField = NSTextField(string: String(initialW))
-        wField.frame.size.width = 90
+        wField.translatesAutoresizingMaskIntoConstraints = false
+        wField.widthAnchor.constraint(equalToConstant: 90).isActive = true
         wField.placeholderString = "1280"
         let xLabel = NSTextField(labelWithString: "×")
         xLabel.font = .systemFont(ofSize: 16, weight: .medium)
@@ -39,7 +40,8 @@ enum CanvasSizeDialog {
         let hLabel = NSTextField(labelWithString: "H")
         hLabel.font = .systemFont(ofSize: 12, weight: .medium)
         let hField = NSTextField(string: String(initialH))
-        hField.frame.size.width = 90
+        hField.translatesAutoresizingMaskIntoConstraints = false
+        hField.widthAnchor.constraint(equalToConstant: 90).isActive = true
         hField.placeholderString = "720"
         let pxLabel = NSTextField(labelWithString: "px")
         pxLabel.font = .systemFont(ofSize: 12)
@@ -67,14 +69,23 @@ enum CanvasSizeDialog {
         aspectLabel.textColor = .secondaryLabelColor
         stack.addArrangedSubview(aspectLabel)
 
+        // Proportional rectangle preview of the chosen ratio.
+        let ratioPreview = RatioPreview()
+        ratioPreview.translatesAutoresizingMaskIntoConstraints = false
+        ratioPreview.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        ratioPreview.heightAnchor.constraint(equalToConstant: 96).isActive = true
+        stack.addArrangedSubview(ratioPreview)
+
         func updateAspect() {
             guard let w = Int(wField.stringValue), let h = Int(hField.stringValue),
                   w > 0, h > 0 else {
                 aspectLabel.stringValue = ""
+                ratioPreview.setRatio(nil)
                 return
             }
             let g = gcd(w, h)
             aspectLabel.stringValue = "\(w / g) : \(h / g)"
+            ratioPreview.setRatio(CGFloat(w) / CGFloat(h))
         }
         updateAspect()
 
@@ -88,7 +99,7 @@ enum CanvasSizeDialog {
         NotificationCenter.default.addObserver(forName: NSControl.textDidChangeNotification,
                                                 object: hField, queue: .main) { _ in watcher.hChanged(hField); updateAspect() }
 
-        stack.frame.size = NSSize(width: 360, height: 100)
+        stack.frame.size = NSSize(width: 360, height: 210)
         alert.accessoryView = stack
         alert.addButton(withTitle: "Apply")
         alert.addButton(withTitle: "Cancel")
@@ -156,5 +167,52 @@ private final class AspectWatcher: NSObject {
         guard let r = lockedRatio, let h = Double(hField.stringValue), h > 0 else { return }
         let w = Int((h * r).rounded())
         if String(w) != wField.stringValue { wField.stringValue = String(w) }
+    }
+}
+
+/// Draws a proportional rounded rectangle for the current width:height
+/// ratio. Hides itself when the ratio is too extreme to render legibly.
+private final class RatioPreview: NSView {
+    /// Aspect ratios beyond this (or its reciprocal) look like a sliver —
+    /// not worth previewing, so we draw nothing.
+    private static let maxRatio: CGFloat = 8.0
+
+    private var ratio: CGFloat?
+
+    func setRatio(_ r: CGFloat?) {
+        if let r, r > 0, r <= Self.maxRatio, (1 / r) <= Self.maxRatio {
+            ratio = r
+        } else {
+            ratio = nil
+        }
+        needsDisplay = true
+    }
+
+    override var isFlipped: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ratio else { return }
+
+        let inset: CGFloat = 6
+        let avail = bounds.insetBy(dx: inset, dy: inset)
+        guard avail.width > 0, avail.height > 0 else { return }
+
+        // Fit a ratio-correct rect inside the available box.
+        var w = avail.width
+        var h = w / ratio
+        if h > avail.height {
+            h = avail.height
+            w = h * ratio
+        }
+        let rect = NSRect(x: avail.midX - w / 2,
+                          y: avail.midY - h / 2,
+                          width: w, height: h)
+
+        let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+        NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+        path.fill()
+        NSColor.controlAccentColor.withAlphaComponent(0.85).setStroke()
+        path.lineWidth = 1.5
+        path.stroke()
     }
 }
